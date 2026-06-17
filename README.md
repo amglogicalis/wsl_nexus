@@ -2,6 +2,7 @@
 
 > Gestor de distribuciones WSL con interfaz gráfica premium para Windows.
 
+![Version](https://img.shields.io/github/v/release/amglogicalis/wsl_nexus?style=flat-square&label=versión)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python)
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D4?style=flat-square&logo=windows)
 ![WSL](https://img.shields.io/badge/WSL-2-orange?style=flat-square&logo=linux)
@@ -15,71 +16,120 @@ Una aplicación de escritorio nativa para Windows que te permite **gestionar tod
 
 ### Funcionalidades principales
 
-- 📋 **Ver distribuciones** instaladas y disponibles en la nube
+- 📋 **Ver** distribuciones instaladas y disponibles en la nube
 - ▶️ **Iniciar / Detener** distribuciones con un clic
-- 💻 **Terminal interactiva** embebida por cada distribución (con soporte para múltiples pestañas)
-- 📦 **Importar distribuciones personalizadas** desde archivos `.tar` / `.tar.gz` con selector visual de archivos
+- 💻 **Terminal interactiva** embebida por cada distribución (pestañas múltiples)
+- 📦 **Importar distribuciones personalizadas** desde `.tar` / `.tar.gz` con selector de archivos
 - 🗑️ **Desinstalar** distribuciones con confirmación visual
+- 🔔 **Notificación automática** de nuevas versiones disponibles
 - 🎨 **4 temas de color** (Cyan, Amber, Emerald, Crimson)
-- 🔤 **Tamaño de fuente** de terminal configurable
 
 ---
 
-## Requisitos previos
+## 🚀 Instalación para usuarios finales
 
-| Requisito | Versión mínima |
-|---|---|
-| Windows | 10 (build 19041) / 11 |
-| Python | 3.10+ |
-| WSL | 2 |
+### Método recomendado: Installer
 
-### Dependencias Python
+1. Ve a la sección **[Releases](https://github.com/amglogicalis/wsl_nexus/releases/latest)**
+2. Descarga `WSLNexus_Setup_vX.X.X.exe`
+3. Ejecútalo **como Administrador** (clic derecho → Ejecutar como administrador)
+4. El installer:
+   - Activa WSL automáticamente si no está habilitado
+   - Instala la app en la carpeta elegida
+   - Crea accesos directos opcionales en el escritorio y menú de inicio
+   - Registra el desinstalador en "Agregar o quitar programas"
 
-```bash
+> **Nota en equipos corporativos:** Si el antivirus o AppLocker bloquea el `.exe`, usa el método de desarrollo (ver abajo).
+
+---
+
+## 🛠️ Requisitos para desarrollo
+
+| Herramienta | Versión mínima | Descarga |
+|---|---|---|
+| Windows | 10 build 19041 / 11 | — |
+| Python | 3.10+ | https://python.org |
+| Git | Cualquiera | https://git-scm.com |
+| Inno Setup | 6.x | https://jrsoftware.org/isdl.php |
+
+### Instalar dependencias Python
+
+```powershell
 pip install pywebview winpty pyinstaller
 ```
 
 ---
 
-## Cómo ejecutar (modo desarrollo)
+## 💻 Ejecutar en modo desarrollo
 
-```bash
-# Clona el repositorio
+```powershell
 git clone https://github.com/amglogicalis/wsl_nexus.git
 cd wsl_nexus
-
-# Instala las dependencias
 pip install pywebview winpty
-
-# Lanza la aplicación
 python app.py
 ```
 
 ---
 
-## Cómo compilar el ejecutable `.exe`
+## 📦 Compilar y publicar un Release
 
-```bash
-pip install pyinstaller
-python -m PyInstaller app.spec --clean
+Todo el proceso se automatiza con un solo script:
+
+### 1. Instalar Inno Setup 6
+
+Descarga e instala desde: **https://jrsoftware.org/isdl.php**
+
+### 2. Ejecutar el script de build
+
+```powershell
+# Solo compilar (sin subir a GitHub)
+.\build_release.ps1
+
+# Compilar + subir release a GitHub automáticamente
+.\build_release.ps1 -Version "1.1.0" -UploadRelease -GitHubToken "ghp_TU_TOKEN"
 ```
 
-El ejecutable se genera en `dist/app.exe`. Cópialo a la carpeta raíz del proyecto o a donde prefieras.
+El script hará automáticamente:
+1. ✅ Verifica que Python, PyInstaller e Inno Setup estén instalados
+2. ⚙️ Compila `app.exe` con PyInstaller
+3. 📦 Compila `WSLNexus_Setup_vX.X.X.exe` con Inno Setup
+4. 🏷️ Crea el tag git `vX.X.X` (si `-UploadRelease`)
+5. 🚀 Sube el installer como asset al release de GitHub (si `-UploadRelease`)
 
-> **Nota:** En equipos corporativos con políticas AppLocker/Antivirus restrictivas, es posible que el `.exe` compilado sea bloqueado. En ese caso, usa siempre `python app.py`.
+El installer final se genera en: `installer_output\WSLNexus_Setup_vX.X.X.exe`
 
 ---
 
-## Estructura del proyecto
+## 🔄 Flujo de trabajo para nuevas versiones
+
+```
+1. Hacer cambios en el código
+2. Actualizar archivo VERSION  →  echo "1.2.0" > VERSION
+3. Commit y push del código    →  git add -A && git commit -m "feat: ..." && git push
+4. Compilar y publicar release →  .\build_release.ps1 -Version "1.2.0" -UploadRelease -GitHubToken "ghp_..."
+```
+
+Los usuarios con la app instalada verán una **notificación automática** en la interfaz cuando haya una nueva versión disponible (requiere conexión a internet).
+
+---
+
+## 📂 Estructura del proyecto
 
 ```
 wsl_nexus/
-├── app.py          # Backend Python (pywebview + winpty PTY bridge)
-├── index.html      # Interfaz de usuario
-├── app.css         # Estilos (glassmorphism, temas, animaciones)
-├── app.js          # Lógica frontend (xterm.js, gestión de sesiones)
-├── app.ico         # Icono de la aplicación
-└── app.spec        # Configuración de PyInstaller
+├── app.py              # Backend Python (pywebview + PTY bridge WSL)
+├── index.html          # Interfaz de usuario
+├── app.css             # Estilos (glassmorphism, 4 temas, animaciones)
+├── app.js              # Lógica frontend (xterm.js, update checker)
+├── app.ico             # Icono de la aplicación
+├── app.spec            # Configuración de PyInstaller
+├── installer.iss       # Script del instalador (Inno Setup 6)
+├── check_prereqs.ps1   # Activa WSL/WSL2 (ejecutado por el installer)
+├── build_release.ps1   # Script de build y publicación automatizada
+├── VERSION             # Versión actual (ej: 1.0.0)
+├── LICENSE.txt         # Licencia
+├── .gitignore          # Exclusiones de git
+└── README.md           # Este archivo
 ```
 
 ---
@@ -88,19 +138,19 @@ wsl_nexus/
 
 La app permite importar cualquier distribución Linux empaquetada como `.tar` o `.tar.gz`.
 
-**Formas de obtener un rootfs:**
+**¿Cómo obtener un rootfs?**
 
-1. **Exportar una distro existente** (en PowerShell):
+1. **Exportar una distro existente** (en PowerShell — sustituye `Ubuntu` por tu distro):
    ```powershell
    wsl --export Ubuntu C:\WSL\mi-copia.tar   # (ejemplo)
    ```
 
-2. **Exportar desde Docker** (ejemplo con cualquier imagen):
+2. **Exportar desde Docker** (sustituye `mi-contenedor` por el nombre real):
    ```powershell
    docker export mi-contenedor -o C:\WSL\rootfs.tar   # (ejemplo)
    ```
 
-3. **Descargar desde fuentes oficiales:** Alpine Linux, Ubuntu Cloud Images, etc.
+3. **Descargar desde fuentes oficiales:** Alpine Linux, Ubuntu Cloud Images, etc. ofrecen archivos `.tar.gz` directamente descargables sin necesidad de escribir ningún comando.
 
 ---
 

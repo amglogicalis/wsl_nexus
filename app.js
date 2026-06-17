@@ -632,6 +632,29 @@ window.onTerminalData = function(sessionId, data) {
     }
 };
 
+// Update checker notification (called by Python backend after checking GitHub Releases)
+window.onUpdateAvailable = function(latestVersion, downloadUrl) {
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-info';
+    toast.style.cssText = 'cursor:pointer; max-width: 360px;';
+    toast.innerHTML = `
+        <i data-lucide="arrow-up-circle" style="width:18px;height:18px;flex-shrink:0;color:#60a5fa;"></i>
+        <div style="flex:1;">
+            <strong style="display:block;">Nueva versión disponible: v${latestVersion}</strong>
+            <span style="font-size:12px;opacity:0.8;">Haz clic para descargar el instalador</span>
+        </div>
+        <i data-lucide="external-link" style="width:15px;height:15px;opacity:0.6;"></i>
+    `;
+    toast.onclick = () => { window.open(downloadUrl, '_blank'); };
+    const container = document.getElementById('toast-container');
+    if (container) {
+        container.appendChild(toast);
+        lucide.createIcons();
+        // No auto-dismiss — user should click it
+        setTimeout(() => toast.remove(), 30000);
+    }
+};
+
 window.onTerminalExit = function(sessionId) {
     const session = activeSessions[sessionId];
     if (session) {

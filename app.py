@@ -4,8 +4,30 @@ import json
 import subprocess
 import threading
 import uuid
+import urllib.request
 import webview
 from winpty import PTY, Backend
+
+
+def get_app_version():
+    """Lee la versión actual desde el archivo VERSION (junto al exe o al .py)."""
+    for base in [
+        os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None,
+        os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else os.getcwd(),
+    ]:
+        if base is None:
+            continue
+        vpath = os.path.join(base, 'VERSION')
+        if os.path.exists(vpath):
+            try:
+                return open(vpath).read().strip()
+            except Exception:
+                pass
+    return '1.0.0'
+
+
+APP_VERSION = get_app_version()
+GITHUB_REPO = 'amglogicalis/wsl_nexus'
 
 def find_wsl_path():
     paths = [
@@ -457,7 +479,7 @@ def main():
     html_path = get_asset_path('index.html')
 
     window = webview.create_window(
-        'WSL Desktop Nexus',
+        f'WSL Desktop Nexus  v{APP_VERSION}',
         html_path,
         js_api=api,
         width=1280,
@@ -469,7 +491,6 @@ def main():
     api._window = window
     
     def on_closed():
-        # Clean up any remaining session processes on exit
         for session_id, pty in list(api._sessions.items()):
             try:
                 pty.close(force=True)
@@ -477,6 +498,28 @@ def main():
                 pass
                 
     window.events.closed += on_closed
+
+    def check_for_updates():
+        """Comprueba GitHub Releases en segundo plano y avisa si hay nueva versión."""
+        import time
+        time.sleep(4)  # espera a que la UI esté cargada
+        try:
+            url = f'https://api.github.com/repos/{GITHUB_REPO}/releases/latest'
+            req = urllib.request.Request(url, headers={'User-Agent': 'WSLNexus-UpdateChecker'})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode())
+            latest = data.get('tag_name', '').lstrip('v').strip()
+            if latest and latest != APP_VERSION:
+                dl_url = data.get('html_url', f'https://github.com/{GITHUB_REPO}/releases/latest')
+                if window:
+                    window.evaluate_js(
+                        f"window.onUpdateAvailable({json.dumps(latest)}, {json.dumps(dl_url)});"
+                    )
+        except Exception:
+            pass  # silencioso si no hay internet
+
+    threading.Thread(target=check_for_updates, daemon=True).start()
+
     webview.start(icon=get_asset_path('app.ico'), debug=False)
 
 if __name__ == '__main__':

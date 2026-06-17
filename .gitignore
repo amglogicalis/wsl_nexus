@@ -3,6 +3,9 @@
 *.dll
 *.pyd
 
+# ─── Installer build output ───────────────────────────────────────────────────
+installer_output/
+
 # ─── PyInstaller build artifacts ─────────────────────────────────────────────
 build/
 dist/

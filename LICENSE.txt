@@ -1,0 +1,8 @@
+WSL Desktop Nexus
+Copyright (c) 2025 AMG Logicalis. Todos los derechos reservados.
+
+Este software es de uso interno/propietario.
+Queda prohibida su redistribución, copia, modificación o uso comercial
+sin autorización expresa por escrito del autor.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
