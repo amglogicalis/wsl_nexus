@@ -8,7 +8,9 @@
 #define AppURL       "https://github.com/amglogicalis/wsl_nexus"
 #define AppExeName   "app.exe"
 #define VersionFile  "VERSION"
-#define AppVersion   ReadFile(VersionFile)
+#define VerFile      FileOpen(VersionFile)
+#define AppVersion   Trim(FileRead(VerFile))
+#expr FileClose(VerFile)
 
 [Setup]
 AppId={{A3F7B2E1-0C4D-4A9F-8E3B-1D5C7F2A8B6E}
@@ -49,7 +51,7 @@ spanish.WSLRestartWarning=WSL ha sido habilitado correctamente.%n%nIMPORTANTE: E
 spanish.WSLAlreadyOK=WSL 2 ya está disponible en este equipo.
 
 [Tasks]
-Name: "desktopicon";   Description: "Crear acceso directo en el {cm:DesktopIco}"; GroupDescription: "Accesos directos:"; Flags: checkedonce
+Name: "desktopicon";   Description: "Crear acceso directo en el Escritorio"; GroupDescription: "Accesos directos:"; Flags: checkedonce
 Name: "startmenuicon"; Description: "Anclar al Menú de Inicio";                    GroupDescription: "Accesos directos:"; Flags: unchecked
 
 [Files]
@@ -87,7 +89,7 @@ Filename: "{app}\{#AppExeName}"; Description: "Lanzar {#AppName} ahora"; Flags: 
 
 [Code]
 var
-  NeedsRestart: Boolean;
+  WSLNeedsRestart: Boolean;
 
 // Comprueba si WSL está disponible ejecutando "wsl --status"
 function IsWSL2Available(): Boolean;
@@ -104,14 +106,17 @@ begin
     // Después de instalar, comprobar si WSL quedó disponible
     if not IsWSL2Available() then
     begin
-      NeedsRestart := True;
-      if MsgBox(CustomMessage('WSLRestartWarning'), mbConfirmation, MB_YESNO) = IDYES then
-        RestartComputer();
+      WSLNeedsRestart := True;
     end else
     begin
       MsgBox(CustomMessage('WSLAlreadyOK'), mbInformation, MB_OK);
     end;
   end;
+end;
+
+function NeedRestart(): Boolean;
+begin
+  Result := WSLNeedsRestart;
 end;
 
 // Limpiar acceso directo del escritorio al desinstalar

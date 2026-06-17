@@ -51,10 +51,45 @@ Require-Cmd "git"    "Instala Git desde https://git-scm.com"
 python -c "import PyInstaller" 2>$null
 if ($LASTEXITCODE -ne 0) { Fail "PyInstaller no instalado. Ejecuta: pip install pyinstaller" }
 
-$innoPath = @(
-    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-    "C:\Program Files\Inno Setup 6\ISCC.exe"
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
+$innoPath = $null
+
+# 1. Intentar buscar en el registro (HKLM y HKCU, incluyendo WOW6432Node)
+$regPaths = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+    "HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1"
+)
+
+foreach ($regPath in $regPaths) {
+    if (Test-Path $regPath) {
+        $installLoc = (Get-ItemProperty -Path $regPath -Name "InstallLocation" -ErrorAction SilentlyContinue).InstallLocation
+        if ($installLoc) {
+            $candidate = Join-Path $installLoc "ISCC.exe"
+            if (Test-Path $candidate) {
+                $innoPath = $candidate
+                break
+            }
+        }
+    }
+}
+
+# 2. Intentar buscar en el PATH del sistema
+if (-not $innoPath) {
+    $cmd = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $innoPath = $cmd.Source
+    }
+}
+
+# 3. Ubicaciones comunes hardcoded como fallback
+if (-not $innoPath) {
+    $innoPath = @(
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "C:\Program Files\Inno Setup 6\ISCC.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
 
 if (-not $innoPath) {
     Fail "Inno Setup 6 no encontrado. Descargalo desde https://jrsoftware.org/isdl.php"
@@ -93,31 +128,62 @@ if (-not (Test-Path $installerFile)) { Fail "No se encontro el installer: $insta
 $sizeMB = [math]::Round((Get-Item $installerFile).Length / 1MB, 1)
 OK "Installer listo: $installerFile ($sizeMB MB)"
 
+# ── Resolver Token de GitHub ──────────────────────────────────────────────────
+if ($UploadRelease) {
+    if ($GitHubToken -eq "") {
+        if ($env:GITHUB_TOKEN) {
+            $GitHubToken = $env:GITHUB_TOKEN
+            Write-Host "  (Token obtenido de la variable de entorno GITHUB_TOKEN)" -ForegroundColor Green
+        }
+        elseif (Get-Command "gh" -ErrorAction SilentlyContinue) {
+            $ghToken = (gh auth token 2>$null)
+            if ($ghToken) {
+                $GitHubToken = $ghToken.Trim()
+                Write-Host "  (Token obtenido de gh CLI)" -ForegroundColor Green
+            }
+        }
+    }
+
+    if ($GitHubToken -eq "") {
+        Write-Host ""
+        Write-Host "  Para crear y subir el release en GitHub se requiere un Token de Acceso Personal (PAT)." -ForegroundColor Yellow
+        Write-Host "  Por favor, introducelo a continuacion (o pulsa Enter para omitir la subida a GitHub):" -ForegroundColor Yellow
+        $promptToken = Read-Host -Prompt "GitHub PAT"
+        if ($promptToken) {
+            $GitHubToken = $promptToken.Trim()
+        }
+    }
+
+    if ($GitHubToken -eq "") {
+        Write-Host "  Advertencia: No se indico/encontro un token de GitHub. Se omitira la creacion del release." -ForegroundColor Yellow
+        $UploadRelease = $false
+    }
+}
+
 # ── Subir a GitHub Releases ───────────────────────────────────────────────────
 if ($UploadRelease) {
 
     Step "Creando tag v$Version y haciendo push..."
+    if (git tag -l "v$Version") {
+        Write-Host "  (Tag local v$Version ya existe. Recreandolo...)" -ForegroundColor Yellow
+        git tag -d "v$Version" | Out-Null
+    }
     git tag -a "v$Version" -m "Release v$Version"
+    if ($LASTEXITCODE -ne 0) { Fail "No se pudo crear el tag local." }
 
     if ($GitHubToken -ne "") {
-        git push "https://amglogicalis:$GitHubToken@github.com/$RepoOwner/$RepoName.git" "v$Version"
+        git push -f "https://amglogicalis:$GitHubToken@github.com/$RepoOwner/$RepoName.git" "v$Version"
     } else {
-        git push origin "v$Version"
+        git push -f origin "v$Version"
     }
 
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo hacer push del tag." }
     OK "Tag v$Version subido."
 
-    Step "Creando release en GitHub..."
+    Step "Preparando release en GitHub..."
     $headers = @{
         Authorization = "token $GitHubToken"
         Accept        = "application/vnd.github.v3+json"
-    }
-
-    if ($GitHubToken -eq "") {
-        # Intentar obtener token de la config git credential
-        Write-Host "  (No se indico -GitHubToken, intentando con credenciales del sistema...)" -ForegroundColor Yellow
-        $headers = @{ Accept = "application/vnd.github.v3+json" }
     }
 
     $releaseNotes = "## WSL Desktop Nexus v$Version`n`n" +
@@ -136,14 +202,47 @@ if ($UploadRelease) {
         prerelease       = $false
     } | ConvertTo-Json -Compress
 
-    $release = Invoke-RestMethod `
-        -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/releases" `
-        -Method POST -Headers $headers -Body $body -ContentType "application/json"
+    # Intentar obtener release existente
+    $release = $null
+    try {
+        $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/releases/tags/v$Version" `
+            -Method GET -Headers $headers -ErrorAction SilentlyContinue
+    } catch {
+        # El release no existe
+    }
 
-    OK "Release creado: $($release.html_url)"
+    if ($release) {
+        Write-Host "  (Release existente encontrado. Actualizando descripcion...)" -ForegroundColor Yellow
+        $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/releases/$($release.id)" `
+            -Method PATCH -Headers $headers -Body $body -ContentType "application/json"
+    } else {
+        $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/releases" `
+            -Method POST -Headers $headers -Body $body -ContentType "application/json"
+    }
+
+    OK "Release preparado: $($release.html_url)"
 
     Step "Subiendo installer al release de GitHub..."
-    $uploadUrl = $release.upload_url -replace "\{.*\}", "?name=WSLNexus_Setup_v$Version.exe"
+    $assetName = "WSLNexus_Setup_v$Version.exe"
+    if ($release.assets) {
+        $existingAsset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+        if ($existingAsset) {
+            Write-Host "  (El archivo '$assetName' ya existe en el release. Eliminandolo para actualizar...)" -ForegroundColor Yellow
+            try {
+                Invoke-RestMethod `
+                    -Uri "https://api.github.com/repos/$RepoOwner/$RepoName/releases/assets/$($existingAsset.id)" `
+                    -Method DELETE -Headers $headers -ErrorAction Stop
+                OK "Archivo anterior eliminado."
+            } catch {
+                Fail "No se pudo eliminar el archivo anterior del release: $_"
+            }
+        }
+    }
+
+    $uploadUrl = $release.upload_url -replace "\{.*\}", "?name=$assetName"
     $fileBytes  = [System.IO.File]::ReadAllBytes((Resolve-Path $installerFile))
 
     Invoke-RestMethod -Uri $uploadUrl -Method POST -Headers $headers `
