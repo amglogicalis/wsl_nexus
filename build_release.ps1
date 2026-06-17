@@ -130,6 +130,7 @@ OK "Installer listo: $installerFile ($sizeMB MB)"
 
 # ── Resolver Token de GitHub ──────────────────────────────────────────────────
 if ($UploadRelease) {
+    $ExplicitToken = $GitHubToken -ne ""
     if ($GitHubToken -eq "") {
         if ($env:GITHUB_TOKEN) {
             $GitHubToken = $env:GITHUB_TOKEN
@@ -171,7 +172,7 @@ if ($UploadRelease) {
     git tag -a "v$Version" -m "Release v$Version"
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo crear el tag local." }
 
-    if ($GitHubToken -ne "") {
+    if ($ExplicitToken -and $GitHubToken -ne "") {
         git push -f "https://amglogicalis:$GitHubToken@github.com/$RepoOwner/$RepoName.git" "v$Version"
     } else {
         git push -f origin "v$Version"
