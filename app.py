@@ -383,6 +383,9 @@ class Api:
             def run_installation():
                 cmd = [self._wsl_path, '--install', '-d', distro_name, '--web-download', '--no-launch']
                 invalid_option_detected = False
+                exit_code = -1
+                standard_failed = False
+                error_msg = ""
                 
                 try:
                     proc = subprocess.Popen(
@@ -396,37 +399,39 @@ class Api:
                         errors='replace',
                     )
                     self._sessions[session_id] = proc
+                    
+                    try:
+                        for line in proc.stdout:
+                            if self._window:
+                                self._window.evaluate_js(
+                                    f"window.onInstallData('{distro_name}', {json.dumps(line)});"
+                                )
+                            lower_line = line.lower()
+                            if any(term in lower_line for term in ["invalid option", "unrecognized option", "unknown option", "opción no válida", "parámetro no válido", "invalid command line option", "error: 0x"]):
+                                if any(opt in lower_line for opt in ["--web-download", "option", "parameter", "argument", "opción", "parámetro"]):
+                                    invalid_option_detected = True
+                    except Exception as e:
+                        pass
+                    finally:
+                        try:
+                            proc.stdout.close()
+                        except Exception:
+                            pass
+                    
+                    exit_code = proc.wait()
+                    if exit_code != 0:
+                        standard_failed = True
+                        error_msg = f"Standard installation failed with exit code: {exit_code}"
                 except Exception as e:
+                    standard_failed = True
+                    error_msg = str(e)
                     if self._window:
                         self._window.evaluate_js(
-                            f"window.onInstallComplete('{distro_name}', false, {json.dumps(str(e))});"
+                            f"window.onInstallData('{distro_name}', '[Nexus] Standard installation could not start: {json.dumps(str(e))}\\n');"
                         )
-                    return
 
-                try:
-                    for line in proc.stdout:
-                        if self._window:
-                            self._window.evaluate_js(
-                                f"window.onInstallData('{distro_name}', {json.dumps(line)});"
-                            )
-                        # Check for unrecognized/invalid option error text
-                        lower_line = line.lower()
-                        if any(term in lower_line for term in ["invalid option", "unrecognized option", "unknown option", "opción no válida", "parámetro no válido", "invalid command line option", "error: 0x"]):
-                            # Note: "error: 0x" might also indicate other errors, but we want to make sure it's invalid parameter related if it fails immediately.
-                            if any(opt in lower_line for opt in ["--web-download", "option", "parameter", "argument", "opción", "parámetro"]):
-                                invalid_option_detected = True
-                except Exception:
-                    pass
-                finally:
-                    try:
-                        proc.stdout.close()
-                    except Exception:
-                        pass
-
-                exit_code = proc.wait()
-
-                # If it failed due to an unrecognized parameter, retry without --web-download
-                if exit_code != 0 and invalid_option_detected:
+                # If standard install failed due to invalid option, try without --web-download
+                if standard_failed and invalid_option_detected:
                     if self._window:
                         self._window.evaluate_js(
                             f"window.onInstallData('{distro_name}', '\\n[Nexus] --web-download option not supported by this WSL version. Retrying without it...\\n\\n');"
@@ -445,43 +450,47 @@ class Api:
                             errors='replace',
                         )
                         self._sessions[session_id] = proc
-                    except Exception as e:
-                        if self._window:
-                            self._window.evaluate_js(
-                                f"window.onInstallComplete('{distro_name}', false, {json.dumps(str(e))});"
-                            )
-                        return
-
-                    try:
-                        for line in proc.stdout:
-                            if self._window:
-                                self._window.evaluate_js(
-                                    f"window.onInstallData('{distro_name}', {json.dumps(line)});"
-                                )
-                    except Exception:
-                        pass
-                    finally:
+                        
                         try:
-                            proc.stdout.close()
+                            for line in proc.stdout:
+                                if self._window:
+                                    self._window.evaluate_js(
+                                        f"window.onInstallData('{distro_name}', {json.dumps(line)});"
+                                    )
                         except Exception:
                             pass
-                    
-                    exit_code = proc.wait()
+                        finally:
+                            try:
+                                proc.stdout.close()
+                            except Exception:
+                                pass
+                        
+                        exit_code = proc.wait()
+                        if exit_code == 0:
+                            standard_failed = False
+                        else:
+                            error_msg = f"Retry standard installation failed with exit code: {exit_code}"
+                    except Exception as e:
+                        error_msg = str(e)
 
-                if exit_code != 0:
+                # If standard installation failed (after retry or immediately), run the PowerShell fallback
+                if standard_failed:
                     if self._window:
                         self._window.evaluate_js(
                             f"window.onInstallData('{distro_name}', '\\n[Nexus] Instalación estándar fallida. Iniciando instalación de fallback vía PowerShell (Start-BitsTransfer & Add-AppxPackage)...\\n\\n');"
                         )
-                    fallback_success = self._run_powershell_fallback_install(distro_name, session_id)
+                    fallback_success, reg_name = self._run_powershell_fallback_install(distro_name, session_id)
                     if fallback_success:
                         success_status = True
+                        installed_name = reg_name
                         msg = "Finished successfully (via fallback)"
                     else:
                         success_status = False
-                        msg = f"Standard installation and PowerShell fallback both failed (Exit code: {exit_code})"
+                        installed_name = distro_name
+                        msg = f"Standard installation and PowerShell fallback both failed. Reason: {error_msg}"
                 else:
                     success_status = True
+                    installed_name = distro_name
                     msg = "Finished successfully"
 
                 if session_id in self._sessions:
@@ -489,7 +498,7 @@ class Api:
 
                 if self._window:
                     self._window.evaluate_js(
-                        f"window.onInstallComplete('{distro_name}', {json.dumps(success_status)}, {json.dumps(msg)});"
+                        f"window.onInstallComplete('{installed_name}', {json.dumps(success_status)}, {json.dumps(msg)});"
                     )
 
             threading.Thread(target=run_installation, daemon=True).start()
@@ -569,26 +578,103 @@ if (-not $exe) {{
 }}
 Write-Host "[Nexus] Ejecutable encontrado: $($exe.Name)"
 
-# ── Step 4: silent registration (--root avoids interactive username prompt) ──
-Write-Host '[Nexus] Registrando distribución en WSL (modo root)...'
-$reg = Start-Process -FilePath $exe.FullName `
-    -ArgumentList 'install --root' `
-    -Wait -PassThru -NoNewWindow `
-    -RedirectStandardOutput 'NUL' -RedirectStandardError 'NUL'
+# ── Step 4: silent registration ──
+Write-Host '[Nexus] Registrando distribución en WSL...'
+$registered = $false
+$timeout = 90
+$interval = 2
+$outFile = "C:\\WSL\\log-$distroName.txt"
+if (Test-Path $outFile) {{ Remove-Item $outFile -Force -ErrorAction SilentlyContinue }}
 
-if ($reg.ExitCode -eq 0) {{
-    Write-Host "[Nexus] Distribución '$distroName' registrada correctamente como root."
-    Write-Host "[Nexus] Puedes crear un usuario normal desde el terminal de la app con: adduser <nombre>"
-}} else {{
-    # Some distros don't support --root; try plain launch and wait briefly
-    Write-Host '[Nexus] --root no soportado; intentando registro directo...'
-    $reg2 = Start-Process -FilePath $exe.FullName -Wait -PassThru -NoNewWindow `
-        -RedirectStandardOutput 'NUL' -RedirectStandardError 'NUL'
-    Write-Host "[Nexus] Proceso de registro finalizado (código $($reg2.ExitCode))."
+Write-Host '[Nexus] Probando registro con "install --root"...'
+$reg = Start-Process -FilePath $exe.FullName -ArgumentList 'install --root' -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $outFile
+
+$lastPos = 0
+for ($i = 0; $i -lt $timeout; $i += $interval) {{
+    Start-Sleep -Seconds $interval
+    
+    if (Test-Path $outFile) {{
+        try {{
+            $content = Get-Content -Path $outFile -Raw -ErrorAction SilentlyContinue
+            if ($content -and $content.Length -gt $lastPos) {{
+                Write-Host $content.Substring($lastPos) -NoNewline
+                $lastPos = $content.Length
+            }}
+        }} catch {{}}
+    }}
+    
+    $list = (wsl.exe --list --quiet) | Out-String -Stream | ForEach-Object {{ $_.Replace("`0", "").Trim() }} | Where-Object {{ $_ }}
+    if ($list -like "*$distroName*") {{
+        $registered = $true
+        Write-Host "`n[Nexus] Distribución registrada con éxito en WSL."
+        break
+    }}
+    if ($reg -and $reg.HasExited -and $reg.ExitCode -ne 0) {{
+        Write-Host "`n[Nexus] Registro con --root falló con código $($reg.ExitCode)."
+        break
+    }}
 }}
 
-Write-Host '[Nexus] Instalación de fallback completada con éxito.'
-exit 0
+if ($reg -and -not $reg.HasExited) {{
+    Write-Host "`n[Nexus] Cerrando proceso de inicialización..."
+    Stop-Process -Id $reg.Id -Force -ErrorAction SilentlyContinue
+}}
+
+if (-not $registered) {{
+    Write-Host '[Nexus] --root no funcionó o no es soportado; intentando registro directo...'
+    if (Test-Path $outFile) {{ Remove-Item $outFile -Force -ErrorAction SilentlyContinue }}
+    $reg2 = Start-Process -FilePath $exe.FullName -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $outFile
+    
+    $lastPos = 0
+    for ($i = 0; $i -lt $timeout; $i += $interval) {{
+        Start-Sleep -Seconds $interval
+        
+        if (Test-Path $outFile) {{
+            try {{
+                $content = Get-Content -Path $outFile -Raw -ErrorAction SilentlyContinue
+                if ($content -and $content.Length -gt $lastPos) {{
+                    Write-Host $content.Substring($lastPos) -NoNewline
+                    $lastPos = $content.Length
+                }}
+            }} catch {{}}
+        }}
+        
+        $list = (wsl.exe --list --quiet) | Out-String -Stream | ForEach-Object {{ $_.Replace("`0", "").Trim() }} | Where-Object {{ $_ }}
+        if ($list -like "*$distroName*") {{
+            $registered = $true
+            Write-Host "`n[Nexus] Distribución registrada con éxito en WSL (registro directo)."
+            break
+        }}
+        if ($reg2 -and $reg2.HasExited -and $reg2.ExitCode -ne 0) {{
+            Write-Host "`n[Nexus] Registro directo falló con código $($reg2.ExitCode)."
+            break
+        }}
+    }}
+    
+    if ($reg2 -and -not $reg2.HasExited) {{
+        Write-Host "`n[Nexus] Cerrando proceso de inicialización..."
+        Stop-Process -Id $reg2.Id -Force -ErrorAction SilentlyContinue
+    }}
+}}
+
+if (Test-Path $outFile) {{ Remove-Item $outFile -Force -ErrorAction SilentlyContinue }}
+
+if ($registered) {{
+    $wslList = (wsl.exe --list --quiet) | Out-String -Stream | ForEach-Object {{ $_.Replace("`0", "").Trim() }} | Where-Object {{ $_ }}
+    $actualName = $wslList | Where-Object {{ $_.ToLower() -eq $distroName.ToLower() -or $_ -like "*$distroName*" }} | Select-Object -First 1
+    if (-not $actualName) {{
+        $actualName = $distroName
+    }}
+    
+    Write-Host "[Nexus] Deteniendo la distribución '$actualName' para cerrar cualquier sesión de consola abierta..."
+    wsl.exe --terminate $actualName
+    Write-Host "[Nexus] RegisteredName: $actualName"
+    Write-Host '[Nexus] Instalación de fallback completada con éxito.'
+    exit 0
+}} else {{
+    Write-Host '[Nexus] ERROR: No se pudo registrar la distribución en WSL tras la instalación.'
+    exit 1
+}}
 """
 
         try:
@@ -604,20 +690,25 @@ exit 0
             )
             self._sessions[session_id] = proc
 
+            actual_registered_name = distro_name
             for line in proc.stdout:
                 if self._window:
                     self._window.evaluate_js(
                         f"window.onInstallData('{distro_name}', {json.dumps(line)});"
                     )
+                if "[Nexus] RegisteredName:" in line:
+                    parts = line.split("[Nexus] RegisteredName:")
+                    if len(parts) > 1:
+                        actual_registered_name = parts[1].strip()
 
             exit_code = proc.wait()
-            return exit_code == 0
+            return exit_code == 0, actual_registered_name
         except Exception as e:
             if self._window:
                 self._window.evaluate_js(
                     f"window.onInstallData('{distro_name}', '[Nexus] ERROR al iniciar PowerShell: {json.dumps(str(e))}\\n');"
                 )
-            return False
+            return False, distro_name
 
     def unregister_distro(self, distro_name):
         try:
