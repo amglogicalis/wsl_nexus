@@ -35,6 +35,30 @@ Para instalar y utilizar la aplicación de forma rápida y sencilla:
    - Crear accesos directos en el Escritorio e Inicio.
    - Registrar la aplicación en "Agregar o quitar programas" para que puedas desinstalarla limpiamente si lo deseas.
 
+### ⚠️ Aviso de Windows Defender / SmartScreen
+
+Es posible que al ejecutar el instalador, **Windows Defender SmartScreen** muestre una advertencia indicando que el archivo puede ser peligroso. Esto ocurre porque el ejecutable **no está firmado digitalmente** con un certificado de confianza (code signing), lo cual es habitual en software independiente y de código abierto.
+
+**El programa es completamente seguro.** Para continuar con la instalación:
+1. Haz clic en **"Más información"** en la ventana de advertencia.
+2. Luego pulsa **"Ejecutar de todas formas"** para iniciar el instalador.
+3. Asegúrate de ejecutar como **Administrador** para que la instalación se complete correctamente.
+
+---
+
+## 🔄 ¿Cómo actualizar la aplicación?
+
+Actualizar WSL Desktop Nexus es sumamente fácil y seguro:
+
+1. **Aviso Automático**: La aplicación verifica en segundo plano la existencia de nuevas versiones al iniciar. Si hay una actualización disponible, aparecerá una notificación emergente (Toast) en la esquina inferior derecha.
+2. **Descarga**: Haz clic en la notificación. Se abrirá tu navegador predeterminado y te redirigirá a la página de descargas de GitHub para obtener la última versión del instalador (`WSLNexus_Setup_vX.X.X.exe`).
+3. **Instalación**:
+   - Cierra la aplicación WSL Desktop Nexus si la tienes abierta.
+   - Ejecuta el nuevo instalador descargado como **Administrador**.
+   - Sigue los pasos del asistente de instalación.
+4. **Conservación de datos**: El instalador actualizará los archivos necesarios sobrescribiendo la versión anterior de forma segura. **Todas tus distribuciones de WSL 2 instaladas y sus datos se mantendrán intactos** y no se perderán.
+
+
 ---
 
 ## 🛠️ Desarrollo: Trabajar desde cualquier PC

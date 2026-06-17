@@ -1,10 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os, importlib.util
+_winpty_dir = os.path.dirname(importlib.util.find_spec('winpty').origin)
+_winpty_bins = [
+    (os.path.join(_winpty_dir, 'winpty-agent.exe'), 'winpty'),
+    (os.path.join(_winpty_dir, 'winpty.dll'),       'winpty'),
+    (os.path.join(_winpty_dir, 'conpty.dll'),        'winpty'),
+    (os.path.join(_winpty_dir, 'OpenConsole.exe'),   'winpty'),
+]
+
 
 a = Analysis(
     ['app.py'],
     pathex=[],
-    binaries=[],
+    binaries=_winpty_bins,
     datas=[('index.html', '.'), ('app.css', '.'), ('app.js', '.'), ('app.ico', '.')],
     hiddenimports=[],
     hookspath=[],
