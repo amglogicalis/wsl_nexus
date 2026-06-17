@@ -703,6 +703,28 @@ window.onInstallComplete = function(distroName, success, message) {
     } else {
         statusText.innerHTML = `<span class="text-danger">✕ Installation Failed</span>`;
         showToast(`Failed to install ${distroName}: ${message}`, 'danger');
+        
+        // Mostrar sugerencias de resolución en la terminal de logs
+        const logBox = document.getElementById('installer-log-terminal');
+        if (logBox) {
+            logBox.textContent += `\n\n--------------------------------------------------\n`;
+            logBox.textContent += `[ERROR] La instalación ha fallado: ${message}\n`;
+            logBox.textContent += `--------------------------------------------------\n\n`;
+            logBox.textContent += `Sugerencias para solucionar este error:\n\n`;
+            logBox.textContent += `1. REINICIAR EL ORDENADOR:\n`;
+            logBox.textContent += `   Si acabas de instalar la aplicación o habilitar WSL por primera vez,\n`;
+            logBox.textContent += `   es obligatorio reiniciar el ordenador antes de poder instalar distribuciones.\n\n`;
+            logBox.textContent += `2. ERROR DE ACCESO DENEGADO (E_ACCESSDENIED / 4294967295):\n`;
+            logBox.textContent += `   - Asegúrate de NO estar ejecutando esta aplicación (WSL Nexus) como Administrador.\n`;
+            logBox.textContent += `     Ejecutarla como Administrador causa conflictos de permisos al interactuar con WSL.\n`;
+            logBox.textContent += `   - Comprueba si las directivas de seguridad de tu empresa, Windows Defender o\n`;
+            logBox.textContent += `     "Acceso Controlado a Carpetas" están bloqueando la ejecución y descarga de WSL.\n\n`;
+            logBox.textContent += `3. INSTALACIÓN MANUAL COMO FALLBACK:\n`;
+            logBox.textContent += `   Si el problema persiste, puedes instalar la distribución abriendo una terminal\n`;
+            logBox.textContent += `   de PowerShell como Administrador y ejecutando manualmente:\n`;
+            logBox.textContent += `   wsl --install -d ${distroName} --web-download\n\n`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
     }
 };
 

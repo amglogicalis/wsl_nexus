@@ -75,6 +75,15 @@ if (-not (Get-WebView2Installed)) {
     Log "WebView2 Runtime ya está instalado."
 }
 
+# --- Actualizar WSL a la versión más reciente (si es posible) ---
+try {
+    Log "Actualizando WSL..."
+    $updateResult = & wsl.exe --update 2>&1
+    Log "wsl --update: $updateResult"
+} catch {
+    Log "No se pudo actualizar WSL: $_"
+}
+
 # --- Establecer WSL 2 como versión por defecto ---
 try {
     $result = & wsl.exe --set-default-version 2 2>&1

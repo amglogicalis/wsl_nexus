@@ -238,39 +238,54 @@ class Api:
 
     def install_distro(self, distro_name):
         # IMPORTANT: Do NOT use WinPTY/PTY here.
-        # WinPTY spawns child processes on a non-interactive window station (the pseudo-console's
-        # own desktop). The WSL installer (LxssManager / WSLService) internally makes COM/DCOM
+        # WinPTY spawns child processes on a non-interactive window station.
+        # The WSL installer (LxssManager / WSLService) internally makes COM/DCOM
         # calls that require the process to run in the proper interactive user session.
-        # When those calls happen from a WinPTY child, Windows returns E_ACCESSDENIED because
-        # the process is not associated with the interactive desktop.
         # Using subprocess.Popen with PIPE keeps the correct session token while still letting
         # us read and stream output to the UI.
+        # We also attempt to use '--web-download' first, as this downloads directly from Microsoft
+        # instead of the Windows Store, avoiding the E_ACCESSDENIED error in restricted environments.
         session_id = f"install_{distro_name}"
         try:
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = 0  # SW_HIDE
 
-            proc = subprocess.Popen(
-                [self._wsl_path, '--install', '-d', distro_name, '--no-launch'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                startupinfo=startupinfo,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                encoding='utf-8',
-                errors='replace',
-            )
+            def run_installation():
+                cmd = [self._wsl_path, '--install', '-d', distro_name, '--web-download', '--no-launch']
+                invalid_option_detected = False
+                
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        stdin=subprocess.DEVNULL,
+                        startupinfo=startupinfo,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                        encoding='utf-8',
+                        errors='replace',
+                    )
+                    self._sessions[session_id] = proc
+                except Exception as e:
+                    if self._window:
+                        self._window.evaluate_js(
+                            f"window.onInstallComplete('{distro_name}', false, {json.dumps(str(e))});"
+                        )
+                    return
 
-            self._sessions[session_id] = proc
-
-            def install_read_loop():
                 try:
                     for line in proc.stdout:
                         if self._window:
                             self._window.evaluate_js(
                                 f"window.onInstallData('{distro_name}', {json.dumps(line)});"
                             )
+                        # Check for unrecognized/invalid option error text
+                        lower_line = line.lower()
+                        if any(term in lower_line for term in ["invalid option", "unrecognized option", "unknown option", "opción no válida", "parámetro no válido", "invalid command line option", "error: 0x"]):
+                            # Note: "error: 0x" might also indicate other errors, but we want to make sure it's invalid parameter related if it fails immediately.
+                            if any(opt in lower_line for opt in ["--web-download", "option", "parameter", "argument", "opción", "parámetro"]):
+                                invalid_option_detected = True
                 except Exception:
                     pass
                 finally:
@@ -280,6 +295,49 @@ class Api:
                         pass
 
                 exit_code = proc.wait()
+
+                # If it failed due to an unrecognized parameter, retry without --web-download
+                if exit_code != 0 and invalid_option_detected:
+                    if self._window:
+                        self._window.evaluate_js(
+                            f"window.onInstallData('{distro_name}', '\\n[Nexus] --web-download option not supported by this WSL version. Retrying without it...\\n\\n');"
+                        )
+                    
+                    cmd_fallback = [self._wsl_path, '--install', '-d', distro_name, '--no-launch']
+                    try:
+                        proc = subprocess.Popen(
+                            cmd_fallback,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            stdin=subprocess.DEVNULL,
+                            startupinfo=startupinfo,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                            encoding='utf-8',
+                            errors='replace',
+                        )
+                        self._sessions[session_id] = proc
+                    except Exception as e:
+                        if self._window:
+                            self._window.evaluate_js(
+                                f"window.onInstallComplete('{distro_name}', false, {json.dumps(str(e))});"
+                            )
+                        return
+
+                    try:
+                        for line in proc.stdout:
+                            if self._window:
+                                self._window.evaluate_js(
+                                    f"window.onInstallData('{distro_name}', {json.dumps(line)});"
+                                )
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            proc.stdout.close()
+                        except Exception:
+                            pass
+                    
+                    exit_code = proc.wait()
 
                 if session_id in self._sessions:
                     del self._sessions[session_id]
@@ -291,7 +349,7 @@ class Api:
                         f"window.onInstallComplete('{distro_name}', {json.dumps(success_status)}, {json.dumps(msg)});"
                     )
 
-            threading.Thread(target=install_read_loop, daemon=True).start()
+            threading.Thread(target=run_installation, daemon=True).start()
             return {"started": True, "session_id": session_id}
         except Exception as e:
             return {"started": False, "message": str(e)}
