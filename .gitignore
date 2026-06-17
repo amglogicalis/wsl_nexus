@@ -1,0 +1,53 @@
+# ─── Compiled executables ────────────────────────────────────────────────────
+*.exe
+*.dll
+*.pyd
+
+# ─── PyInstaller build artifacts ─────────────────────────────────────────────
+build/
+dist/
+*.manifest
+*.pkg
+
+# ─── Python cache ────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.eggs/
+*.egg
+
+# ─── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ─── Logs and personal files ──────────────────────────────────────────────────
+*.log
+LOG.txt
+logs/
+
+# ─── Internal planning / development docs ─────────────────────────────────────
+implementation_plan.md
+task.md
+walkthrough.md
+*.bak
+*.tmp
+
+# ─── OS / IDE files ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
+
+# ─── WSL local data (if any exports land here) ────────────────────────────────
+*.tar
+*.tar.gz
+*.tgz

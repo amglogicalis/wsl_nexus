@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WSL Desktop Nexus</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Xterm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <!-- Xterm.js & Fit Addon -->
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="app.css">
+</head>
+<body class="theme-cyan">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <i data-lucide="terminal" class="logo-icon"></i>
+                    <div class="logo-glow"></div>
+                </div>
+                <h1 class="logo-text">WSL <span>Nexus</span></h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" id="btn-nav-distros" onclick="switchView('distros')">
+                    <i data-lucide="grid"></i>
+                    <span>Distributions</span>
+                </button>
+                <button class="nav-item" id="btn-nav-terminals" onclick="switchView('terminals')">
+                    <i data-lucide="monitor"></i>
+                    <span>Active Terminals</span>
+                    <span class="badge-count" id="terminal-count">0</span>
+                </button>
+                <button class="nav-item" id="btn-nav-settings" onclick="switchView('settings')">
+                    <i data-lucide="sliders"></i>
+                    <span>Settings</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-stats">
+                <div class="stat-header">System Status</div>
+                <div class="stat-row">
+                    <span class="stat-label">Total Distros</span>
+                    <span class="stat-value" id="stat-total">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Running</span>
+                    <span class="stat-value text-success" id="stat-running">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Default Distro</span>
+                    <span class="stat-value text-highlight" id="stat-default">-</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <div class="connection-status">
+                    <span class="status-indicator online"></span>
+                    <span>Nexus Engine Connected</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Panel -->
+        <main class="main-panel">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <h2 class="view-title" id="current-view-title">Distributions</h2>
+                </div>
+                <div class="header-right">
+                    <div class="search-container" id="search-box-wrapper">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="search-input" placeholder="Search distributions..." oninput="filterDistros()">
+                    </div>
+                    <button class="btn btn-primary" onclick="openImportModal()" style="padding: 0 16px; height: 42px; flex-grow: 0; width: auto; font-size: 13px; gap: 6px;" title="Import Custom Tarball Distro">
+                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                        <span>Import Distro</span>
+                    </button>
+                    <button class="action-btn header-btn" onclick="refreshDistros()" title="Refresh Distros">
+                        <i data-lucide="rotate-cw" id="refresh-icon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-container">
+                <!-- Distros Grid View -->
+                <section class="view-panel active" id="view-distros">
+                    <div class="section-container">
+                        <div class="grid-header">
+                            <h3>Installed & Available Distributions</h3>
+                            <p>Launch terminal environments or install new distributions from the cloud.</p>
+                        </div>
+                        <div class="distros-grid" id="distros-grid">
+                            <!-- Cards will be populated by JS -->
+                            <div class="loading-state">
+                                <div class="spinner"></div>
+                                <p>Loading WSL distributions...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Terminals View -->
+                <section class="view-panel" id="view-terminals">
+                    <div class="terminal-workspace">
+                        <!-- Terminal Tabs -->
+                        <div class="terminal-tabs-bar" id="terminal-tabs-bar">
+                            <!-- Tabs populated by JS -->
+                            <div class="no-terminals-msg">No active terminals open. Start a distro!</div>
+                        </div>
+                        <!-- Terminal Container -->
+                        <div class="terminal-panes-container" id="terminal-panes-container">
+                            <!-- Terminal divs will be created here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings View -->
+                <section class="view-panel" id="view-settings">
+                    <div class="settings-container">
+                        <div class="settings-card">
+                            <h3>Visual Themes</h3>
+                            <p>Customize the color accent of the Nexus interface.</p>
+                            <div class="theme-options">
+                                <button class="theme-option active" data-theme="cyan" onclick="setTheme('cyan')">
+                                    <span class="color-dot bg-cyan"></span>
+                                    <span>Neon Cyan</span>
+                                </button>
+                                <button class="theme-option" data-theme="amber" onclick="setTheme('amber')">
+                                    <span class="color-dot bg-amber"></span>
+                                    <span>Amber Gold</span>
+                                </button>
+                                <button class="theme-option" data-theme="emerald" onclick="setTheme('emerald')">
+                                    <span class="color-dot bg-emerald"></span>
+                                    <span>Emerald Green</span>
+                                </button>
+                                <button class="theme-option" data-theme="crimson" onclick="setTheme('crimson')">
+                                    <span class="color-dot bg-crimson"></span>
+                                    <span>Crimson Red</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3>Terminal Options</h3>
+                            <p>Configure text appearance and shell configurations.</p>
+                            <div class="form-group">
+                                <label for="setting-font-size">Font Size (px)</label>
+                                <div class="font-size-control">
+                                    <button class="number-btn" onclick="adjustFontSize(-1)">-</button>
+                                    <input type="number" id="setting-font-size" value="14" min="10" max="24" readonly>
+                                    <button class="number-btn" onclick="adjustFontSize(1)">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3>Engine Details</h3>
+                            <p>Local environment parameters.</p>
+                            <div class="info-table">
+                                <div class="info-row">
+                                    <span>Python Version</span>
+                                    <span id="info-python-ver">Detecting...</span>
+                                </div>
+                                <div class="info-row">
+                                    <span>winpty Backend</span>
+                                    <span>WinPTY v3.0.5</span>
+                                </div>
+                                <div class="info-row">
+                                    <span>WSL Version</span>
+                                    <span id="info-wsl-ver">Detecting...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Installer Screen (Overlay-like pane) -->
+                <section class="view-panel" id="view-installer">
+                    <div class="installer-container">
+                        <div class="installer-card">
+                            <div class="installer-header">
+                                <div class="installer-title-row">
+                                    <i data-lucide="download-cloud" class="installer-icon text-highlight"></i>
+                                    <div>
+                                        <h3 id="install-distro-name">Installing Distribution</h3>
+                                        <p id="install-status-text">Connecting to download servers...</p>
+                                    </div>
+                                </div>
+                                <div class="installer-spinner"></div>
+                            </div>
+                            <div class="installer-console">
+                                <div id="installer-log-terminal"></div>
+                            </div>
+                            <!-- Interactive input bar -->
+                            <div class="installer-input-bar" id="installer-input-bar">
+                                <i data-lucide="terminal" style="width:15px;height:15px;color:var(--accent-color);flex-shrink:0;"></i>
+                                <input
+                                    type="text"
+                                    id="installer-input"
+                                    placeholder="Escribe aquí si el proceso pide datos (usuario, contraseña...)"
+                                    onkeydown="onInstallerInputKey(event)"
+                                    autocomplete="off"
+                                    autocorrect="off"
+                                    spellcheck="false"
+                                >
+                                <button class="installer-input-toggle" id="installer-pw-toggle" onclick="toggleInstallerInputType()" title="Mostrar/ocultar contraseña">
+                                    <i data-lucide="eye" style="width:15px;height:15px;"></i>
+                                </button>
+                                <button class="btn btn-primary installer-send-btn" onclick="sendInstallerInput()" title="Enviar (Enter)">
+                                    <i data-lucide="send" style="width:14px;height:14px;"></i>
+                                </button>
+                            </div>
+                            <div class="installer-footer">
+                                <span class="note-text">No cierres la aplicación durante la instalación.</span>
+                                <button class="btn btn-secondary" onclick="cancelInstallation()">Cerrar vista</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Import Custom Distro Modal -->
+    <div class="modal-overlay" id="import-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <i data-lucide="folder-archive" class="text-highlight modal-icon"></i>
+                    <h3>Import Custom Distribution</h3>
+                </div>
+                <button class="modal-close-btn" onclick="closeImportModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 480px; overflow-y: auto; padding-right: 4px;">
+                <!-- Instructions / Help Section -->
+                <div class="help-section mb-16">
+                    <button class="help-toggle-btn" onclick="toggleHelpText(event)">
+                        <i data-lucide="help-circle" style="width: 15px; height: 15px;"></i>
+                        <span>¿Cómo funciona esto?</span>
+                    </button>
+                    <div class="help-content-box" id="import-help-content">
+                        <p>WSL te permite instalar cualquier sistema Linux si tienes sus archivos en un archivo comprimido de tipo <strong>.tar</strong> o <strong>.tar.gz</strong> (llamado <em>rootfs</em>).</p>
+                        <p><strong>Lo que necesitas para importar:</strong></p>
+                        <ul>
+                            <li><strong>Nombre:</strong> Un nombre corto para tu Linux (ej. <code>MiAlpine</code>).</li>
+                            <li><strong>Carpeta de instalación:</strong> Dónde se guardarán los archivos (ej. <code>C:\WSL\MiAlpine</code>).</li>
+                            <li><strong>Archivo Tarball:</strong> La ruta del archivo comprimido <code>.tar</code> en tu PC.</li>
+                        </ul>
+                        <p class="mt-8"><strong>¿Cómo conseguir un archivo .tar?</strong></p>
+                        <ol>
+                            <li><strong>Copia una de tus distros:</strong> Abre PowerShell y corre (sustituye <em>Ubuntu</em> por el nombre de tu distro):<br><code>wsl --export Ubuntu C:\WSL\mi-copia.tar</code> <em style="font-size:11px;opacity:0.6">(ejemplo)</em></li>
+                            <li><strong>Exporta desde Docker:</strong> Si usas Docker, puedes exportar cualquier contenedor a tar (sustituye <em>contenedor</em> por el nombre real):<br><code>docker export contenedor -o C:\WSL\contenedor.tar</code> <em style="font-size:11px;opacity:0.6">(ejemplo)</em></li>
+                            <li><strong>Descargas oficiales:</strong> Webs como la de Alpine Linux ofrecen su <em>Mini Root Filesystem</em> directo en .tar.gz para descargar. No necesitas escribir ningún comando.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <p class="modal-desc" style="margin-bottom: 12px; font-weight: 700; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; font-size: 13px;">Rellena los campos para importar:</p>
+
+                <div class="form-group mb-16">
+                    <label for="import-name">Distribution Name</label>
+                    <input type="text" id="import-name" placeholder="e.g., MyAlpine" oninput="updateDefaultImportPath()">
+                </div>
+                <div class="form-group mb-16">
+                    <label for="import-install-dir">Installation Folder</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="import-install-dir" placeholder="e.g., C:\WSL\MyAlpine" style="flex-grow: 1;">
+                        <button class="btn" onclick="selectFolder()" style="flex-grow: 0; padding: 0 12px; height: 42px;" title="Browse Folders">
+                            <i data-lucide="folder-open" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group mb-16">
+                    <label for="import-tarball">Tarball File Path (.tar / .tar.gz)</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="import-tarball" placeholder="e.g., C:\Downloads\rootfs.tar" style="flex-grow: 1;">
+                        <button class="btn" onclick="selectTarball()" style="flex-grow: 0; padding: 0 12px; height: 42px;" title="Browse Files">
+                            <i data-lucide="file-archive" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitImportDistro()">Import Distro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Danger Confirm Modal (uninstall) -->
+    <div class="modal-overlay" id="danger-confirm-modal">
+        <div class="modal-card danger-modal-card">
+            <div class="danger-modal-icon-wrap">
+                <div class="danger-icon-glow"></div>
+                <i data-lucide="triangle-alert" class="danger-modal-icon"></i>
+            </div>
+            <h3 class="danger-modal-title">¿Eliminar distribución?</h3>
+            <p class="danger-modal-distro" id="danger-modal-distro-name"></p>
+            <p class="danger-modal-desc">
+                Esta acción eliminará <strong>permanentemente</strong> todo el sistema de archivos Linux
+                de esta distribución. <strong>No se puede deshacer.</strong>
+            </p>
+            <div class="danger-modal-footer">
+                <button class="btn btn-secondary" onclick="closeDangerModal()">
+                    <i data-lucide="x" style="width:15px;height:15px;"></i>
+                    Cancelar
+                </button>
+                <button class="btn danger-confirm-btn" id="danger-confirm-btn" onclick="confirmUninstall()">
+                    <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+                    Sí, eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Custom Script -->
+    <script src="app.js"></script>
+</body>
+</html>
