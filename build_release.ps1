@@ -188,18 +188,18 @@ if ($UploadRelease) {
     }
 
     $releaseNotes = "## WSL Desktop Nexus v$Version`n`n" +
-        "### 🚀 Instalación`n" +
-        "Descarga ``WSLNexus_Setup_v$Version.exe`` y ejecútalo como **Administrador**.`n`n" +
-        "### ⚠️ Aviso de Windows Defender / SmartScreen`n" +
-        "**IMPORTANTE**: Si Windows Defender o SmartScreen bloquea la ejecución del instalador:`n" +
-        "1. Haz clic en **\"Más información\"**.`n" +
-        "2. Haz clic en el botón **\"Ejecutar de todas formas\"** para continuar.`n`n" +
-        "Esto ocurre simplemente porque el instalador no está firmado con un certificado digital de pago (habitual en software independiente), pero **el programa es 100% seguro y libre de malware**.`n`n" +
-        "### 🔧 Mejoras y Dependencias Resueltas`n" +
-        "- **Corrección del Terminal**: Se solucionó el error ''agent executable not exists'' relativo a ``winpty-agent.exe`` al abrir consolas o intentar instalar distribuidores en otros ordenadores.`n" +
-        "- **WebView2 Runtime Autoinstalable**: El instalador ahora detecta y descarga/instala silenciosamente el runtime de WebView2 de Microsoft si no está presente en el sistema.`n" +
-        "- **Activación Automática**: Habilita de forma automatizada WSL 2 y Virtual Machine Platform en el sistema.`n`n" +
-        "### 📋 Requisitos`n" +
+        "### :rocket: Instalacion`n" +
+        "Descarga ``WSLNexus_Setup_v$Version.exe`` y ejecutalo como **Administrador**.`n`n" +
+        "### :warning: Aviso de Windows Defender / SmartScreen`n" +
+        "**IMPORTANTE**: Si Windows Defender o SmartScreen bloquea la ejecucion del instalador:`n" +
+        "1. Haz clic en **`"Mas informacion`"**.`n" +
+        "2. Haz clic en el boton **`"Ejecutar de todas formas`"** para continuar.`n`n" +
+        "Esto ocurre simplemente porque el instalador no esta firmado con un certificado digital de pago (habitual en software independiente), pero **el programa es 100% seguro y libre de malware**.`n`n" +
+        "### :wrench: Mejoras y Dependencias Resueltas`n" +
+        "- **Correccion del Terminal**: Se soluciono el error `'agent executable not exists`' relativo a ``winpty-agent.exe`` al abrir consolas o intentar instalar distribuidores en otros ordenadores.`n" +
+        "- **WebView2 Runtime Autoinstalable**: El instalador ahora detecta y descarga/instala silenciosamente el runtime de WebView2 de Microsoft si no esta presente en el sistema.`n" +
+        "- **Activacion Automatica**: Habilita de forma automatizada WSL 2 y Virtual Machine Platform en el sistema.`n`n" +
+        "### :clipboard: Requisitos`n" +
         "- Windows 10 / Windows 11 (64-bit)"
 
     $body = @{
