@@ -237,43 +237,60 @@ class Api:
         return False
 
     def install_distro(self, distro_name):
+        # IMPORTANT: Do NOT use WinPTY/PTY here.
+        # WinPTY spawns child processes on a non-interactive window station (the pseudo-console's
+        # own desktop). The WSL installer (LxssManager / WSLService) internally makes COM/DCOM
+        # calls that require the process to run in the proper interactive user session.
+        # When those calls happen from a WinPTY child, Windows returns E_ACCESSDENIED because
+        # the process is not associated with the interactive desktop.
+        # Using subprocess.Popen with PIPE keeps the correct session token while still letting
+        # us read and stream output to the UI.
         session_id = f"install_{distro_name}"
         try:
-            pty = PTY(80, 24, backend=Backend.WinPTY)
-            success = pty.spawn(self._wsl_path, cmdline=f"wsl.exe --install -d {distro_name}")
-            if not success:
-                return {"started": False, "message": "Failed to spawn wsl.exe --install process"}
-            
-            self._sessions[session_id] = pty
-            
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+
+            proc = subprocess.Popen(
+                [self._wsl_path, '--install', '-d', distro_name, '--no-launch'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                encoding='utf-8',
+                errors='replace',
+            )
+
+            self._sessions[session_id] = proc
+
             def install_read_loop():
-                while True:
-                    try:
-                        if not pty.isalive():
-                            break
-                        data = pty.read(blocking=True)
-                        if not data:
-                            break
-                        if self._window:
-                            self._window.evaluate_js(f"window.onInstallData('{distro_name}', {json.dumps(data)});")
-                    except Exception:
-                        break
-                
-                exit_code = 1
                 try:
-                    exit_code = pty.get_exitstatus()
-                    pty.close()
+                    for line in proc.stdout:
+                        if self._window:
+                            self._window.evaluate_js(
+                                f"window.onInstallData('{distro_name}', {json.dumps(line)});"
+                            )
                 except Exception:
                     pass
-                    
+                finally:
+                    try:
+                        proc.stdout.close()
+                    except Exception:
+                        pass
+
+                exit_code = proc.wait()
+
                 if session_id in self._sessions:
                     del self._sessions[session_id]
-                
+
                 success_status = (exit_code == 0)
                 msg = f"Exit code: {exit_code}" if not success_status else "Finished successfully"
                 if self._window:
-                    self._window.evaluate_js(f"window.onInstallComplete('{distro_name}', {json.dumps(success_status)}, {json.dumps(msg)});")
-                    
+                    self._window.evaluate_js(
+                        f"window.onInstallComplete('{distro_name}', {json.dumps(success_status)}, {json.dumps(msg)});"
+                    )
+
             threading.Thread(target=install_read_loop, daemon=True).start()
             return {"started": True, "session_id": session_id}
         except Exception as e:
