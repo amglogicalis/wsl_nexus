@@ -75,6 +75,47 @@ if (-not (Get-WebView2Installed)) {
     Log "WebView2 Runtime ya está instalado."
 }
 
+# --- Habilitar Windows Terminal (Microsoft.WindowsTerminal) ---
+function Get-WindowsTerminalInstalled {
+    try {
+        $pkg = Get-AppxPackage -Name Microsoft.WindowsTerminal -AllUsers -ErrorAction SilentlyContinue
+        if ($pkg) { return $true }
+    } catch {}
+    if (Get-Command wt.exe -ErrorAction SilentlyContinue) { return $true }
+    return $false
+}
+
+if (-not (Get-WindowsTerminalInstalled)) {
+    Log "Windows Terminal no encontrado. Intentando instalar mediante winget..."
+    try {
+        $wingetProc = Start-Process -FilePath "winget.exe" -ArgumentList "install --id Microsoft.WindowsTerminal --source winget --accept-source-agreements --accept-package-agreements --silent" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
+        if ($wingetProc -and $wingetProc.ExitCode -eq 0) {
+            Log "Windows Terminal instalado correctamente mediante winget."
+        } else {
+            Log "Error al instalar Windows Terminal con winget (Codigo: $($wingetProc.ExitCode)). Intentando descarga manual..."
+            $url = "https://github.com/microsoft/terminal/releases/download/v1.18.3181.0/Microsoft.WindowsTerminal_1.18.3181.0_8wekyb3d8bbwe.msixbundle"
+            $destPath = "$env:TEMP\Microsoft.WindowsTerminal.msixbundle"
+            if (Get-Command Invoke-WebRequest -ErrorAction SilentlyContinue) {
+                Invoke-WebRequest -Uri $url -OutFile $destPath -UseBasicParsing
+            } else {
+                $webClient = New-Object System.Net.WebClient
+                $webClient.DownloadFile($url, $destPath)
+            }
+            Log "Descarga de Windows Terminal completada. Instalando..."
+            Add-AppxPackage -Path $destPath
+            Log "Windows Terminal instalado de forma manual."
+        }
+    } catch {
+        Log "Error al descargar o instalar Windows Terminal: $_"
+    } finally {
+        if ($destPath -and (Test-Path $destPath)) {
+            Remove-Item $destPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+} else {
+    Log "Windows Terminal ya está instalado."
+}
+
 # --- Actualizar WSL a la versión más reciente (si es posible) ---
 try {
     Log "Actualizando WSL..."

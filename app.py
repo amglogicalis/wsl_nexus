@@ -40,6 +40,60 @@ def find_wsl_path():
             return p
     return "wsl.exe"
 
+DISTRO_FALLBACK_INFO = {
+    "ubuntu": {
+        "url": "https://aka.ms/wslubuntu",
+        "search": "*Ubuntu*"
+    },
+    "ubuntu-24.04": {
+        "url": "https://aka.ms/wslubuntu2404",
+        "search": "*Ubuntu2404*"
+    },
+    "ubuntu-22.04": {
+        "url": "https://aka.ms/wslubuntu2204",
+        "search": "*Ubuntu2204*"
+    },
+    "ubuntu-20.04": {
+        "url": "https://aka.ms/wslubuntu2004",
+        "search": "*Ubuntu2004*"
+    },
+    "ubuntu-18.04": {
+        "url": "https://aka.ms/wsl-ubuntu-1804",
+        "search": "*Ubuntu1804*"
+    },
+    "debian": {
+        "url": "https://aka.ms/wsl-debian-gnulinux",
+        "search": "*Debian*"
+    },
+    "kali-linux": {
+        "url": "https://aka.ms/wsl-kali-linux-new",
+        "search": "*Kali*"
+    },
+    "opensuse-leap-15.5": {
+        "url": "https://aka.ms/wsl-opensuse-leap-15-5",
+        "search": "*openSUSE*"
+    },
+    "sles-15": {
+        "url": "https://aka.ms/wsl-sles-15",
+        "search": "*SUSE*"
+    }
+}
+
+def get_fallback_info(distro_name):
+    name_lower = distro_name.lower()
+    if name_lower in DISTRO_FALLBACK_INFO:
+        return DISTRO_FALLBACK_INFO[name_lower]
+    for key, val in DISTRO_FALLBACK_INFO.items():
+        if key in name_lower:
+            return val
+    if "debian" in name_lower:
+        return DISTRO_FALLBACK_INFO["debian"]
+    if "kali" in name_lower:
+        return DISTRO_FALLBACK_INFO["kali-linux"]
+    if "suse" in name_lower or "sles" in name_lower:
+        return DISTRO_FALLBACK_INFO["sles-15"]
+    return DISTRO_FALLBACK_INFO["ubuntu"]
+
 class Api:
     def __init__(self):
         self._window = None
@@ -204,6 +258,30 @@ class Api:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
+    def is_windows_terminal_available(self):
+        try:
+            wt_path = "wt.exe"
+            localappdata = os.environ.get("LOCALAPPDATA", "")
+            local_wt = os.path.join(localappdata, "Microsoft", "WindowsApps", "wt.exe")
+            if os.path.exists(local_wt):
+                return True
+            subprocess.run(["where", "wt.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            return True
+        except Exception:
+            return False
+
+    def launch_external_terminal(self, distro_name):
+        try:
+            wt_path = "wt.exe"
+            localappdata = os.environ.get("LOCALAPPDATA", "")
+            local_wt = os.path.join(localappdata, "Microsoft", "WindowsApps", "wt.exe")
+            if os.path.exists(local_wt):
+                wt_path = local_wt
+            subprocess.Popen([wt_path, "wsl.exe", "-d", distro_name])
+            return True
+        except Exception:
+            return False
+
     def write_terminal_data(self, session_id, data):
         pty = self._sessions.get(session_id)
         if pty:
@@ -339,11 +417,25 @@ class Api:
                     
                     exit_code = proc.wait()
 
+                if exit_code != 0:
+                    if self._window:
+                        self._window.evaluate_js(
+                            f"window.onInstallData('{distro_name}', '\\n[Nexus] Instalación estándar fallida. Iniciando instalación de fallback vía PowerShell (Start-BitsTransfer & Add-AppxPackage)...\\n\\n');"
+                        )
+                    fallback_success = self._run_powershell_fallback_install(distro_name, session_id)
+                    if fallback_success:
+                        success_status = True
+                        msg = "Finished successfully (via fallback)"
+                    else:
+                        success_status = False
+                        msg = f"Standard installation and PowerShell fallback both failed (Exit code: {exit_code})"
+                else:
+                    success_status = True
+                    msg = "Finished successfully"
+
                 if session_id in self._sessions:
                     del self._sessions[session_id]
 
-                success_status = (exit_code == 0)
-                msg = f"Exit code: {exit_code}" if not success_status else "Finished successfully"
                 if self._window:
                     self._window.evaluate_js(
                         f"window.onInstallComplete('{distro_name}', {json.dumps(success_status)}, {json.dumps(msg)});"
@@ -353,6 +445,82 @@ class Api:
             return {"started": True, "session_id": session_id}
         except Exception as e:
             return {"started": False, "message": str(e)}
+
+    def _run_powershell_fallback_install(self, distro_name, session_id):
+        info = get_fallback_info(distro_name)
+        url = info["url"]
+        search_pattern = info["search"]
+        
+        ps_script = f"""
+        $ErrorActionPreference = 'Stop'
+        try {{
+            Write-Host "[Nexus] Creando directorio C:\\WSL..."
+            New-Item -ItemType Directory -Force -Path 'C:\\WSL' | Out-Null
+            
+            Write-Host "[Nexus] Descargando instalador (.appx) desde {url} usando Start-BitsTransfer..."
+            $dest = "C:\\WSL\\{distro_name}.appx"
+            if (Test-Path $dest) {{ Remove-Item $dest -Force }}
+            Start-BitsTransfer -Source '{url}' -Destination $dest
+            
+            Write-Host "[Nexus] Instalando paquete (.appx) con Add-AppxPackage..."
+            Add-AppxPackage -Path $dest
+            
+            Write-Host "[Nexus] Buscando ejecutable inicializador para registrar la distribución..."
+            Start-Sleep -Seconds 2
+            $pkg = Get-AppxPackage -Name '{search_pattern}' -ErrorAction SilentlyContinue
+            if ($pkg) {{
+                $installLoc = $pkg.InstallLocation
+                $exe = Get-ChildItem -Path $installLoc -Filter "*.exe" | Select-Object -First 1
+                if ($exe) {{
+                    Write-Host "[Nexus] Lanzando consola interactiva ($($exe.Name)) en segundo plano..."
+                    Write-Host "[Nexus] Por favor, completa la configuración de usuario/contraseña en la ventana que se acaba de abrir."
+                    Start-Process -FilePath $exe.FullName
+                }} else {{
+                    Write-Host "[Nexus] Error: No se encontró el ejecutable inicializador en la carpeta del paquete."
+                }}
+            }} else {{
+                Write-Host "[Nexus] Advertencia: No se encontró el paquete en el registro Appx. Es posible que el usuario deba iniciarlo desde el Menú de Inicio."
+            }}
+            
+            Write-Host "[Nexus] Instalación de fallback completada con éxito."
+            exit 0
+        }} catch {{
+            Write-Host "[Nexus] ERROR durante la instalación de fallback: $_"
+            exit 1
+        }}
+        """
+        
+        try:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+            
+            proc = subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                encoding='utf-8',
+                errors='replace',
+            )
+            self._sessions[session_id] = proc
+            
+            for line in proc.stdout:
+                if self._window:
+                    self._window.evaluate_js(
+                        f"window.onInstallData('{distro_name}', {json.dumps(line)});"
+                    )
+            
+            exit_code = proc.wait()
+            return exit_code == 0
+        except Exception as e:
+            if self._window:
+                self._window.evaluate_js(
+                    f"window.onInstallData('{distro_name}', '[Nexus] ERROR al iniciar PowerShell: {json.dumps(str(e))}\\n');"
+                )
+            return False
 
     def unregister_distro(self, distro_name):
         try:

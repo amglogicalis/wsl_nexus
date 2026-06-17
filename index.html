@@ -154,13 +154,26 @@
 
                         <div class="settings-card">
                             <h3>Terminal Options</h3>
-                            <p>Configure text appearance and shell configurations.</p>
-                            <div class="form-group">
+                            <p>Configure text appearance and execution style.</p>
+                            <div class="form-group mb-16">
                                 <label for="setting-font-size">Font Size (px)</label>
                                 <div class="font-size-control">
                                     <button class="number-btn" onclick="adjustFontSize(-1)">-</button>
                                     <input type="number" id="setting-font-size" value="14" min="10" max="24" readonly>
                                     <button class="number-btn" onclick="adjustFontSize(1)">+</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Terminal Execution Type</label>
+                                <div class="theme-options">
+                                    <button class="theme-option" id="term-type-external" onclick="setTerminalType('external')">
+                                        <i data-lucide="terminal" style="width: 14px; height: 14px;"></i>
+                                        <span>Windows Terminal</span>
+                                    </button>
+                                    <button class="theme-option" id="term-type-integrated" onclick="setTerminalType('integrated')">
+                                        <i data-lucide="monitor" style="width: 14px; height: 14px;"></i>
+                                        <span>Integrated Console</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

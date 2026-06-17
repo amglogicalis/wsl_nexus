@@ -15,6 +15,7 @@ let pendingUninstallDistro = null;  // distro name pending uninstall confirmatio
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     initTheme();
+    initTerminalTypeSetting();
     
     // Check if pywebview is already loaded, otherwise wait for event
     if (window.pywebview) {
@@ -38,6 +39,20 @@ function onPywebviewReady() {
         console.error(e);
     }
     
+    // Detect WT availability for default settings
+    try {
+        pywebview.api.is_windows_terminal_available().then(available => {
+            let savedType = localStorage.getItem('nexus-terminal-type');
+            if (!savedType) {
+                savedType = available ? 'external' : 'integrated';
+            }
+            setTerminalType(savedType);
+        });
+    } catch (e) {
+        console.error(e);
+        initTerminalTypeSetting();
+    }
+    
     refreshDistros();
 }
 
@@ -59,6 +74,28 @@ function setTheme(theme) {
             btn.classList.remove('active');
         }
     });
+}
+
+// Terminal Execution Type Management
+function initTerminalTypeSetting() {
+    const savedType = localStorage.getItem('nexus-terminal-type') || 'external';
+    setTerminalType(savedType);
+}
+
+function setTerminalType(type) {
+    localStorage.setItem('nexus-terminal-type', type);
+    
+    const extBtn = document.getElementById('term-type-external');
+    const intBtn = document.getElementById('term-type-integrated');
+    if (extBtn && intBtn) {
+        if (type === 'external') {
+            extBtn.classList.add('active');
+            intBtn.classList.remove('active');
+        } else {
+            intBtn.classList.add('active');
+            extBtn.classList.remove('active');
+        }
+    }
 }
 
 // Adjust Terminal Font Size
@@ -362,6 +399,23 @@ function cancelInstallation() {
 
 // Terminal Instances & Sessions Management
 function launchDistroTerminal(distroName) {
+    const termType = localStorage.getItem('nexus-terminal-type') || 'external';
+    if (termType === 'external' && pyReady) {
+        pywebview.api.launch_external_terminal(distroName).then(success => {
+            if (success) {
+                showToast(`Launched ${distroName} in Windows Terminal`, 'success');
+                setTimeout(refreshDistros, 1000);
+            } else {
+                showToast(`Windows Terminal not available. Falling back to Integrated Console...`, 'warning');
+                launchIntegratedTerminal(distroName);
+            }
+        });
+    } else {
+        launchIntegratedTerminal(distroName);
+    }
+}
+
+function launchIntegratedTerminal(distroName) {
     switchView('terminals');
     
     // Check if we already have an active terminal for this distro
