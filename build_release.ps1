@@ -195,9 +195,15 @@ if ($UploadRelease) {
         "1. Haz clic en **`"Mas informacion`"**.`n" +
         "2. Haz clic en el boton **`"Ejecutar de todas formas`"** para continuar.`n`n" +
         "Esto ocurre simplemente porque el instalador no esta firmado con un certificado digital de pago (habitual en software independiente), pero **el programa es 100% seguro y libre de malware**.`n`n" +
+        "### :arrows_counterclockwise: Reinicio y Primer Distribuidor`n" +
+        "**IMPORTANTE**: Si es la primera vez que habilitas WSL en tu ordenador:`n" +
+        "- Posiblemente tengas que **reiniciar tu ordenador** tras la instalacion del primer distribuidor.`n" +
+        "- Si tras el reinicio la distribucion no aparece listada en la aplicacion, vuelve a pulsar en **Instalar** (reinstalarla) dentro de la app para que se complete el registro en tu usuario normal.`n" +
+        "- **No ejecutes la aplicacion como Administrador**: El programa principal (`app.exe`) **NO** debe ser ejecutado con privilegios de Administrador. Si lo haces, las distribuciones se registraran en el perfil del Administrador y no se veran en tu usuario, o recibiras errores de acceso denegado (``E_ACCESSDENIED``).`n`n" +
         "### :wrench: Mejoras y Dependencias Resueltas`n" +
+        "- **Lanzamiento sin Elevacion**: Corregido el instalador para lanzar la app como usuario normal (no elevado) al terminar, previniendo errores de permisos y registros huerfanos.`n" +
         "- **Correccion del Terminal**: Se soluciono el error `'agent executable not exists`' relativo a ``winpty-agent.exe`` al abrir consolas o intentar instalar distribuidores en otros ordenadores.`n" +
-        "- **WebView2 Runtime Autoinstalable**: El instalador ahora detecta y descarga/instala silenciosamente el runtime de WebView2 de Microsoft si no esta presente en el sistema.`n" +
+        "- **WebView2 Runtime Autoinstalable**: El instalador ahora descarga e instala silenciosamente el runtime de WebView2 de Microsoft si no esta presente.`n" +
         "- **Activacion Automatica**: Habilita de forma automatizada WSL 2 y Virtual Machine Platform en el sistema.`n`n" +
         "### :clipboard: Requisitos`n" +
         "- Windows 10 / Windows 11 (64-bit)"

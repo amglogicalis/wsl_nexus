@@ -44,6 +44,12 @@ Es posible que al ejecutar el instalador, **Windows Defender SmartScreen** muest
 2. Luego pulsa **"Ejecutar de todas formas"** para iniciar el instalador.
 3. Asegúrate de ejecutar como **Administrador** para que la instalación se complete correctamente.
 
+> [!IMPORTANT]
+> **Reinicio del Sistema**: Si es la primera vez que habilitas WSL en tu ordenador, es muy probable que necesites **reiniciar el ordenador** tras instalar tu primer distribuidor y, tras reiniciar, seguramente volver a instalarlo (o registrarlo) para que se complete la configuración y aparezca en la lista de activos.
+
+> [!WARNING]
+> **No ejecutar la aplicación como Administrador**: El programa principal (`app.exe`) **NO** debe ser ejecutado con privilegios de Administrador. Si la ejecutas como Administrador, las distribuciones de WSL se registrarán en el perfil de la cuenta Administrador y no serán visibles desde tu usuario normal, o recibirás errores de "Acceso denegado" (`E_ACCESSDENIED`) al intentar reinstalarlas.
+
 ---
 
 ## 🔄 ¿Cómo actualizar la aplicación?
@@ -57,49 +63,6 @@ Actualizar WSL Desktop Nexus es sumamente fácil y seguro:
    - Ejecuta el nuevo instalador descargado como **Administrador**.
    - Sigue los pasos del asistente de instalación.
 4. **Conservación de datos**: El instalador actualizará los archivos necesarios sobrescribiendo la versión anterior de forma segura. **Todas tus distribuciones de WSL 2 instaladas y sus datos se mantendrán intactos** y no se perderán.
-
-
----
-
-## 🛠️ Desarrollo: Trabajar desde cualquier PC
-
-Si deseas modificar el código o compilar el programa desde otro ordenador con tu misma cuenta de GitHub, sigue estos pasos:
-
-### 1. Clonar el repositorio
-Asegúrate de tener instalado Git y tu cuenta configurada:
-```powershell
-git clone https://github.com/amglogicalis/wsl_nexus.git
-cd wsl_nexus
-```
-
-### 2. Configurar entorno
-Instala Python 3.10+ e Inno Setup 6 (https://jrsoftware.org/isdl.php), luego instala las dependencias de Python:
-```powershell
-pip install pywebview winpty pyinstaller
-```
-
-### 3. Ejecutar en modo desarrollo
-```powershell
-python app.py
-```
-
-### 4. Compilar y publicar actualizaciones
-El proceso de compilación del ejecutable `.exe` y empaquetado del instalador está automatizado en un solo script (`build_release.ps1`).
-
-* **Solo compilar localmente** (genera el instalador en `installer_output/`):
-  ```powershell
-  .\build_release.ps1
-  ```
-
-* **Compilar y publicar el release en GitHub**:
-  Para subir el release automáticamente a GitHub utilizando tu cuenta, define tu Token de Acceso Personal (PAT) en una variable de entorno antes de ejecutar el script:
-  ```powershell
-  # Configurar tu token de GitHub
-  $env:GITHUB_TOKEN = "tu_github_pat_aquí"
-
-  # Compilar y subir la versión (se subirá el tag y el release con tu cuenta activa)
-  .\build_release.ps1 -Version "1.0.0" -UploadRelease
-  ```
 
 ---
 

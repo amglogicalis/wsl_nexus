@@ -85,7 +85,7 @@ Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#Setup
 Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\check_prereqs.ps1"""; StatusMsg: "Habilitando WSL 2 (si es necesario)..."; Flags: runhidden waituntilterminated
 
 ; 2. Lanzar la app al terminar (opcional)
-Filename: "{app}\{#AppExeName}"; Description: "Lanzar {#AppName} ahora"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Lanzar {#AppName} ahora"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Code]
 var
