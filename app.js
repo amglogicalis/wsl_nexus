@@ -38,20 +38,10 @@ function onPywebviewReady() {
     } catch (e) {
         console.error(e);
     }
-    
-    // Detect WT availability for default settings
-    try {
-        pywebview.api.is_windows_terminal_available().then(available => {
-            let savedType = localStorage.getItem('nexus-terminal-type');
-            if (!savedType) {
-                savedType = available ? 'external' : 'integrated';
-            }
-            setTerminalType(savedType);
-        });
-    } catch (e) {
-        console.error(e);
-        initTerminalTypeSetting();
-    }
+
+    // Apply saved terminal backend preference (no external window detection needed;
+    // both ConPTY and WinPTY are embedded in the app).
+    initTerminalTypeSetting();
     
     refreshDistros();
 }
@@ -76,24 +66,30 @@ function setTheme(theme) {
     });
 }
 
-// Terminal Execution Type Management
+// Terminal Backend Type Management
+// 'conpty'  = Windows Terminal engine, embedded in app (default, recommended)
+// 'winpty'  = Legacy WinPTY, embedded in app (fallback for compatibility)
 function initTerminalTypeSetting() {
-    const savedType = localStorage.getItem('nexus-terminal-type') || 'external';
+    const savedType = localStorage.getItem('nexus-terminal-type') || 'conpty';
     setTerminalType(savedType);
 }
 
 function setTerminalType(type) {
+    // Normalise old stored values from previous releases
+    if (type === 'external') type = 'conpty';
+    if (type === 'integrated') type = 'winpty';
+
     localStorage.setItem('nexus-terminal-type', type);
     
-    const extBtn = document.getElementById('term-type-external');
-    const intBtn = document.getElementById('term-type-integrated');
-    if (extBtn && intBtn) {
-        if (type === 'external') {
-            extBtn.classList.add('active');
-            intBtn.classList.remove('active');
+    const conptyBtn = document.getElementById('term-type-conpty');
+    const winptyBtn = document.getElementById('term-type-winpty');
+    if (conptyBtn && winptyBtn) {
+        if (type === 'conpty') {
+            conptyBtn.classList.add('active');
+            winptyBtn.classList.remove('active');
         } else {
-            intBtn.classList.add('active');
-            extBtn.classList.remove('active');
+            winptyBtn.classList.add('active');
+            conptyBtn.classList.remove('active');
         }
     }
 }
@@ -399,20 +395,9 @@ function cancelInstallation() {
 
 // Terminal Instances & Sessions Management
 function launchDistroTerminal(distroName) {
-    const termType = localStorage.getItem('nexus-terminal-type') || 'external';
-    if (termType === 'external' && pyReady) {
-        pywebview.api.launch_external_terminal(distroName).then(success => {
-            if (success) {
-                showToast(`Launched ${distroName} in Windows Terminal`, 'success');
-                setTimeout(refreshDistros, 1000);
-            } else {
-                showToast(`Windows Terminal not available. Falling back to Integrated Console...`, 'warning');
-                launchIntegratedTerminal(distroName);
-            }
-        });
-    } else {
-        launchIntegratedTerminal(distroName);
-    }
+    // Both ConPTY and WinPTY modes run embedded inside the app (xterm.js).
+    // We just pass the backend preference down to create_terminal_session.
+    launchIntegratedTerminal(distroName);
 }
 
 function launchIntegratedTerminal(distroName) {
@@ -505,8 +490,11 @@ function launchIntegratedTerminal(distroName) {
         tabDiv: tabDiv
     };
     
-    // Call Python to spawn PTY shell
-    pywebview.api.create_terminal_session(distroName, cols, rows).then(res => {
+    // Call Python to spawn PTY shell with the preferred backend
+    const backendType = localStorage.getItem('nexus-terminal-type') || 'conpty';
+    // Normalise legacy values
+    const normalised = (backendType === 'external' || backendType === 'conpty') ? 'conpty' : 'winpty';
+    pywebview.api.create_terminal_session(distroName, cols, rows, normalised).then(res => {
         if (res.success) {
             const actualSessionId = res.session_id;
             

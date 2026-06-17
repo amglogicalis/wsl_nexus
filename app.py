@@ -8,6 +8,16 @@ import urllib.request
 import webview
 from winpty import PTY, Backend
 
+# ── Subprocess helpers: suppress all console-window flashes ──────────────────
+def _make_si():
+    """Returns a STARTUPINFO that hides any spawned console window."""
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    si.wShowWindow = 0  # SW_HIDE
+    return si
+
+_NO_WIN = subprocess.CREATE_NO_WINDOW
+
 
 def get_app_version():
     """Lee la versión actual desde el archivo VERSION (junto al exe o al .py)."""
@@ -40,42 +50,62 @@ def find_wsl_path():
             return p
     return "wsl.exe"
 
+# Each entry: url=AppxBundle download, pkg_name=Get-AppxPackage -Name pattern,
+# exe_hint=prefix of the launcher exe inside the package, winget_id=winget package id.
 DISTRO_FALLBACK_INFO = {
     "ubuntu": {
         "url": "https://aka.ms/wslubuntu",
-        "search": "*Ubuntu*"
+        "pkg_name": "CanonicalGroupLimited.Ubuntu*",
+        "exe_hint": "ubuntu",
+        "winget_id": "Canonical.Ubuntu"
     },
     "ubuntu-24.04": {
         "url": "https://aka.ms/wslubuntu2404",
-        "search": "*Ubuntu2404*"
+        "pkg_name": "CanonicalGroupLimited.Ubuntu24.04LTS*",
+        "exe_hint": "ubuntu2404",
+        "winget_id": "Canonical.Ubuntu.2404"
     },
     "ubuntu-22.04": {
         "url": "https://aka.ms/wslubuntu2204",
-        "search": "*Ubuntu2204*"
+        "pkg_name": "CanonicalGroupLimited.Ubuntu22.04LTS*",
+        "exe_hint": "ubuntu2204",
+        "winget_id": "Canonical.Ubuntu.2204"
     },
     "ubuntu-20.04": {
         "url": "https://aka.ms/wslubuntu2004",
-        "search": "*Ubuntu2004*"
+        "pkg_name": "CanonicalGroupLimited.Ubuntu20.04LTS*",
+        "exe_hint": "ubuntu2004",
+        "winget_id": "Canonical.Ubuntu.2004"
     },
     "ubuntu-18.04": {
         "url": "https://aka.ms/wsl-ubuntu-1804",
-        "search": "*Ubuntu1804*"
+        "pkg_name": "CanonicalGroupLimited.Ubuntu18.04onWindows*",
+        "exe_hint": "ubuntu1804",
+        "winget_id": "Canonical.Ubuntu.1804"
     },
     "debian": {
         "url": "https://aka.ms/wsl-debian-gnulinux",
-        "search": "*Debian*"
+        "pkg_name": "TheDebianProject.DebianGNULinux*",
+        "exe_hint": "debian",
+        "winget_id": "TheDebianProject.DebianGNULinux"
     },
     "kali-linux": {
         "url": "https://aka.ms/wsl-kali-linux-new",
-        "search": "*Kali*"
+        "pkg_name": "KaliLinux.KaliLinuxforWindowsSubsystemforLinux*",
+        "exe_hint": "kali",
+        "winget_id": "KaliLinux.KaliLinux"
     },
     "opensuse-leap-15.5": {
         "url": "https://aka.ms/wsl-opensuse-leap-15-5",
-        "search": "*openSUSE*"
+        "pkg_name": "46932SUSE.openSUSELeap15.5*",
+        "exe_hint": "openSUSE",
+        "winget_id": "openSUSE.openSUSELeap15.5"
     },
     "sles-15": {
         "url": "https://aka.ms/wsl-sles-15",
-        "search": "*SUSE*"
+        "pkg_name": "46932SUSE.SUSELinuxEnterpriseServer15SP5*",
+        "exe_hint": "SLES",
+        "winget_id": "SUSE.SUSELinuxEnterpriseServer15SP5"
     }
 }
 
@@ -103,7 +133,10 @@ class Api:
     def get_system_info(self):
         wsl_ver = "Unknown"
         try:
-            out = subprocess.check_output([self._wsl_path, '--version'])
+            out = subprocess.check_output(
+                [self._wsl_path, '--version'],
+                startupinfo=_make_si(), creationflags=_NO_WIN
+            )
             try:
                 text = out.decode('utf-16')
             except Exception:
@@ -126,7 +159,10 @@ class Api:
     def get_wsl_distros(self):
         installed = []
         try:
-            out = subprocess.check_output([self._wsl_path, '--list', '--verbose'])
+            out = subprocess.check_output(
+                [self._wsl_path, '--list', '--verbose'],
+                startupinfo=_make_si(), creationflags=_NO_WIN
+            )
             try:
                 text = out.decode('utf-16')
             except Exception:
@@ -162,7 +198,10 @@ class Api:
 
         online = []
         try:
-            out = subprocess.check_output([self._wsl_path, '--list', '--online'])
+            out = subprocess.check_output(
+                [self._wsl_path, '--list', '--online'],
+                startupinfo=_make_si(), creationflags=_NO_WIN
+            )
             try:
                 text = out.decode('utf-16')
             except Exception:
@@ -206,22 +245,35 @@ class Api:
 
     def start_distro_silent(self, distro_name):
         try:
-            subprocess.run([self._wsl_path, '-d', distro_name, '--', 'true'], shell=True, check=True)
+            subprocess.run(
+                [self._wsl_path, '-d', distro_name, '--', 'true'],
+                startupinfo=_make_si(), creationflags=_NO_WIN,
+                check=True
+            )
             return True
         except Exception:
             return False
 
     def stop_distro(self, distro_name):
         try:
-            subprocess.run([self._wsl_path, '--terminate', distro_name], check=True)
+            subprocess.run(
+                [self._wsl_path, '--terminate', distro_name],
+                startupinfo=_make_si(), creationflags=_NO_WIN,
+                check=True
+            )
             return True
         except Exception:
             return False
 
-    def create_terminal_session(self, distro_name, cols, rows):
+    def create_terminal_session(self, distro_name, cols, rows, backend_type='conpty'):
+        """Spawn an embedded PTY terminal for distro_name.
+        backend_type: 'conpty' (default – same engine as Windows Terminal)
+                      'winpty' (legacy fallback)
+        """
         session_id = str(uuid.uuid4())
         try:
-            pty = PTY(cols, rows, backend=Backend.WinPTY)
+            backend = Backend.ConPTY if backend_type != 'winpty' else Backend.WinPTY
+            pty = PTY(cols, rows, backend=backend)
             success = pty.spawn(self._wsl_path, cmdline=f"wsl.exe -d {distro_name}")
             if not success:
                 return {"success": False, "message": "winpty failed to spawn wsl process"}
@@ -259,28 +311,27 @@ class Api:
             return {"success": False, "message": str(e)}
 
     def is_windows_terminal_available(self):
+        """Check if Windows Terminal (wt.exe) is installed on this machine."""
+        localappdata = os.environ.get("LOCALAPPDATA", "")
+        local_wt = os.path.join(localappdata, "Microsoft", "WindowsApps", "wt.exe")
+        if os.path.exists(local_wt):
+            return True
         try:
-            wt_path = "wt.exe"
-            localappdata = os.environ.get("LOCALAPPDATA", "")
-            local_wt = os.path.join(localappdata, "Microsoft", "WindowsApps", "wt.exe")
-            if os.path.exists(local_wt):
-                return True
-            subprocess.run(["where", "wt.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(
+                ["where", "wt.exe"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                startupinfo=_make_si(), creationflags=_NO_WIN,
+                check=True
+            )
             return True
         except Exception:
             return False
 
+    # NOTE: We no longer open an external wt.exe window.
+    # Both 'ConPTY' and 'WinPTY' modes are embedded inside the app via xterm.js.
+    # This stub is kept for API compat so old JS callers don't crash.
     def launch_external_terminal(self, distro_name):
-        try:
-            wt_path = "wt.exe"
-            localappdata = os.environ.get("LOCALAPPDATA", "")
-            local_wt = os.path.join(localappdata, "Microsoft", "WindowsApps", "wt.exe")
-            if os.path.exists(local_wt):
-                wt_path = local_wt
-            subprocess.Popen([wt_path, "wsl.exe", "-d", distro_name])
-            return True
-        except Exception:
-            return False
+        return False
 
     def write_terminal_data(self, session_id, data):
         pty = self._sessions.get(session_id)
@@ -447,72 +498,118 @@ class Api:
             return {"started": False, "message": str(e)}
 
     def _run_powershell_fallback_install(self, distro_name, session_id):
-        info = get_fallback_info(distro_name)
-        url = info["url"]
-        search_pattern = info["search"]
-        
-        ps_script = f"""
-        $ErrorActionPreference = 'Stop'
-        try {{
-            Write-Host "[Nexus] Creando directorio C:\\WSL..."
-            New-Item -ItemType Directory -Force -Path 'C:\\WSL' | Out-Null
-            
-            Write-Host "[Nexus] Descargando instalador (.appx) desde {url} usando Start-BitsTransfer..."
-            $dest = "C:\\WSL\\{distro_name}.appx"
-            if (Test-Path $dest) {{ Remove-Item $dest -Force }}
-            Start-BitsTransfer -Source '{url}' -Destination $dest
-            
-            Write-Host "[Nexus] Instalando paquete (.appx) con Add-AppxPackage..."
-            Add-AppxPackage -Path $dest
-            
-            Write-Host "[Nexus] Buscando ejecutable inicializador para registrar la distribución..."
-            Start-Sleep -Seconds 2
-            $pkg = Get-AppxPackage -Name '{search_pattern}' -ErrorAction SilentlyContinue
-            if ($pkg) {{
-                $installLoc = $pkg.InstallLocation
-                $exe = Get-ChildItem -Path $installLoc -Filter "*.exe" | Select-Object -First 1
-                if ($exe) {{
-                    Write-Host "[Nexus] Lanzando consola interactiva ($($exe.Name)) en segundo plano..."
-                    Write-Host "[Nexus] Por favor, completa la configuración de usuario/contraseña en la ventana que se acaba de abrir."
-                    Start-Process -FilePath $exe.FullName
-                }} else {{
-                    Write-Host "[Nexus] Error: No se encontró el ejecutable inicializador en la carpeta del paquete."
-                }}
-            }} else {{
-                Write-Host "[Nexus] Advertencia: No se encontró el paquete en el registro Appx. Es posible que el usuario deba iniciarlo desde el Menú de Inicio."
-            }}
-            
-            Write-Host "[Nexus] Instalación de fallback completada con éxito."
-            exit 0
-        }} catch {{
-            Write-Host "[Nexus] ERROR durante la instalación de fallback: $_"
-            exit 1
-        }}
+        """Fallback WSL distro installation via winget (preferred) or
+        Start-BitsTransfer + Add-AppxPackage + silent --root registration.
+        No interactive console window is opened; the distro is initialised
+        with root as the default user so it appears correctly in the app.
         """
-        
+        info = get_fallback_info(distro_name)
+        url        = info["url"]
+        pkg_name   = info["pkg_name"]
+        exe_hint   = info["exe_hint"]
+        winget_id  = info["winget_id"]
+
+        ps_script = f"""
+$ErrorActionPreference = 'Continue'
+$distroName = '{distro_name}'
+$wingetId   = '{winget_id}'
+$url        = '{url}'
+$pkgName    = '{pkg_name}'
+$exeHint    = '{exe_hint}'
+
+# ── Step 1: try winget (silent, no window) ───────────────────────────────────
+Write-Host '[Nexus] Intentando instalación con winget...'
+$wingetExe = (Get-Command winget -ErrorAction SilentlyContinue)?.Source
+if ($wingetExe) {{
+    $wg = Start-Process -FilePath $wingetExe `
+        -ArgumentList "install --id $wingetId --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity" `
+        -Wait -PassThru -NoNewWindow
+    if ($wg.ExitCode -eq 0) {{
+        Write-Host '[Nexus] winget instaló el paquete correctamente.'
+    }} else {{
+        Write-Host "[Nexus] winget falló (código $($wg.ExitCode)). Probando con AppxPackage..."
+    }}
+}}
+
+# ── Step 2: fallback via Start-BitsTransfer + Add-AppxPackage ────────────────
+$pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
+if (-not $pkg) {{
+    Write-Host "[Nexus] Descargando paquete desde $url ..."
+    New-Item -ItemType Directory -Force -Path 'C:\\WSL' | Out-Null
+    $dest = "C:\\WSL\\$distroName.appx"
+    if (Test-Path $dest) {{ Remove-Item $dest -Force }}
+    try {{
+        Start-BitsTransfer -Source $url -Destination $dest -ErrorAction Stop
+        Write-Host '[Nexus] Descarga completada. Instalando paquete...'
+        Add-AppxPackage -Path $dest -ErrorAction Stop
+        Write-Host '[Nexus] Paquete instalado.'
+        Start-Sleep -Seconds 3
+    }} catch {{
+        Write-Host "[Nexus] ERROR al instalar paquete: $_"
+        exit 1
+    }}
+}}
+
+# ── Step 3: locate the distro launcher exe ───────────────────────────────────
+$pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
+if (-not $pkg) {{
+    Write-Host '[Nexus] ERROR: No se encontró el paquete AppxPackage tras la instalación.'
+    exit 1
+}}
+$installLoc = $pkg.InstallLocation
+Write-Host "[Nexus] Paquete encontrado en: $installLoc"
+
+# Find exe: prefer one whose name starts with the exe_hint, else take the first
+$exes = Get-ChildItem -Path $installLoc -Filter '*.exe' -ErrorAction SilentlyContinue
+$exe  = ($exes | Where-Object {{ $_.Name -like "$exeHint*.exe" }} | Select-Object -First 1)
+if (-not $exe) {{ $exe = $exes | Select-Object -First 1 }}
+if (-not $exe) {{
+    Write-Host '[Nexus] ERROR: No se encontró el ejecutable de la distribución.'
+    exit 1
+}}
+Write-Host "[Nexus] Ejecutable encontrado: $($exe.Name)"
+
+# ── Step 4: silent registration (--root avoids interactive username prompt) ──
+Write-Host '[Nexus] Registrando distribución en WSL (modo root)...'
+$reg = Start-Process -FilePath $exe.FullName `
+    -ArgumentList 'install --root' `
+    -Wait -PassThru -NoNewWindow `
+    -RedirectStandardOutput 'NUL' -RedirectStandardError 'NUL'
+
+if ($reg.ExitCode -eq 0) {{
+    Write-Host "[Nexus] Distribución '$distroName' registrada correctamente como root."
+    Write-Host "[Nexus] Puedes crear un usuario normal desde el terminal de la app con: adduser <nombre>"
+}} else {{
+    # Some distros don't support --root; try plain launch and wait briefly
+    Write-Host '[Nexus] --root no soportado; intentando registro directo...'
+    $reg2 = Start-Process -FilePath $exe.FullName -Wait -PassThru -NoNewWindow `
+        -RedirectStandardOutput 'NUL' -RedirectStandardError 'NUL'
+    Write-Host "[Nexus] Proceso de registro finalizado (código $($reg2.ExitCode))."
+}}
+
+Write-Host '[Nexus] Instalación de fallback completada con éxito.'
+exit 0
+"""
+
         try:
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = 0  # SW_HIDE
-            
             proc = subprocess.Popen(
                 ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
-                startupinfo=startupinfo,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                startupinfo=_make_si(),
+                creationflags=_NO_WIN,
                 encoding='utf-8',
                 errors='replace',
             )
             self._sessions[session_id] = proc
-            
+
             for line in proc.stdout:
                 if self._window:
                     self._window.evaluate_js(
                         f"window.onInstallData('{distro_name}', {json.dumps(line)});"
                     )
-            
+
             exit_code = proc.wait()
             return exit_code == 0
         except Exception as e:
@@ -524,7 +621,11 @@ class Api:
 
     def unregister_distro(self, distro_name):
         try:
-            subprocess.run([self._wsl_path, '--unregister', distro_name], check=True)
+            subprocess.run(
+                [self._wsl_path, '--unregister', distro_name],
+                startupinfo=_make_si(), creationflags=_NO_WIN,
+                check=True
+            )
             return True
         except Exception:
             return False

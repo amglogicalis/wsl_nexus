@@ -164,17 +164,18 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>Terminal Execution Type</label>
+                                <label>Terminal Backend</label>
                                 <div class="theme-options">
-                                    <button class="theme-option" id="term-type-external" onclick="setTerminalType('external')">
-                                        <i data-lucide="terminal" style="width: 14px; height: 14px;"></i>
-                                        <span>Windows Terminal</span>
+                                    <button class="theme-option" id="term-type-conpty" onclick="setTerminalType('conpty')">
+                                        <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
+                                        <span>ConPTY (Recomendado)</span>
                                     </button>
-                                    <button class="theme-option" id="term-type-integrated" onclick="setTerminalType('integrated')">
+                                    <button class="theme-option" id="term-type-winpty" onclick="setTerminalType('winpty')">
                                         <i data-lucide="monitor" style="width: 14px; height: 14px;"></i>
-                                        <span>Integrated Console</span>
+                                        <span>WinPTY (Legado)</span>
                                     </button>
                                 </div>
+                                <small style="color: var(--text-muted); margin-top: 6px; display: block;">Ambos modos se muestran integrados en la app. ConPTY usa el motor de Windows Terminal.</small>
                             </div>
                         </div>
 
