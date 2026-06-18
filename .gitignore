@@ -37,6 +37,9 @@ logs/
 implementation_plan.md
 task.md
 walkthrough.md
+build_release.ps1
+check_prereqs.ps1
+file_version_info.txt
 *.bak
 *.tmp
 
