@@ -646,7 +646,8 @@ if ($wslUrl -and $wslUrl -ne '') {{
 if (-not $registered) {{
     Write-Host ''
     Write-Host '[Nexus] ═══ MÉTODO 2: winget ═══'
-    $wingetExe = (Get-Command winget -ErrorAction SilentlyContinue)?.Source
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    $wingetExe = if ($wingetCmd) {{ $wingetCmd.Source }} else {{ $null }}
     if ($wingetExe) {{
         $wg = Start-Process -FilePath $wingetExe `
             -ArgumentList "install --id $wingetId --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity" `
