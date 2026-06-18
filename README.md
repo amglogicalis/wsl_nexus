@@ -39,8 +39,8 @@ Para instalar y utilizar la aplicación de forma rápida y sencilla:
 
 #### **VÍA PYTHON**
 
-1. Clonar repo "https://github.com/amglogicalis/wsl_nexus.git"
-2. Instalar dependencias (necesitas instalar si no lo tienes Python:https://www.python.org/downloads/windows/) mediante "python install_deps.py" en un terminal
+1. Clonar repo mediante "git clone https://github.com/amglogicalis/wsl_nexus.git"
+2. Instalar dependencias (necesitas instalar, si no lo tienes Python:https://www.python.org/downloads/windows/) mediante "python install_deps.py" en un terminal
 3. Ejecutar la app mediante "python app.py"
 
 ### ⚠️ Aviso de Windows Defender / SmartScreen
