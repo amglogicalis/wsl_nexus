@@ -989,6 +989,87 @@ def get_asset_path(filename):
     return os.path.join(current_dir, filename)
 
 def main():
+    terminal_windows = []
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            from ctypes import wintypes
+            import os
+
+            TH32CS_SNAPPROCESS = 2
+
+            class PROCESSENTRY32(ctypes.Structure):
+                _fields_ = [
+                    ('dwSize', wintypes.DWORD),
+                    ('cntUsage', wintypes.DWORD),
+                    ('th32ProcessID', wintypes.DWORD),
+                    ('th32DefaultHeapID', ctypes.c_void_p),
+                    ('th32ModuleID', wintypes.DWORD),
+                    ('cntThreads', wintypes.DWORD),
+                    ('th32ParentProcessID', wintypes.DWORD),
+                    ('pcPriClassBase', wintypes.LONG),
+                    ('dwFlags', wintypes.DWORD),
+                    ('szExeFile', ctypes.c_wchar * 260)
+                ]
+
+            def get_parent_pid(pid):
+                h = ctypes.windll.kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+                if h == -1 or h is None:
+                    return None
+                pe = PROCESSENTRY32()
+                pe.dwSize = ctypes.sizeof(PROCESSENTRY32)
+                if ctypes.windll.kernel32.Process32FirstW(h, ctypes.byref(pe)):
+                    while True:
+                        if pe.th32ProcessID == pid:
+                            ctypes.windll.kernel32.CloseHandle(h)
+                            return pe.th32ParentProcessID
+                        if not ctypes.windll.kernel32.Process32NextW(h, ctypes.byref(pe)):
+                            break
+                ctypes.windll.kernel32.CloseHandle(h)
+                return None
+
+            # Collect all ancestor PIDs of the current Python process
+            ancestor_pids = set()
+            curr_pid = os.getpid()
+            ancestor_pids.add(curr_pid)
+            while curr_pid:
+                curr_pid = get_parent_pid(curr_pid)
+                if curr_pid:
+                    ancestor_pids.add(curr_pid)
+
+            # Callback to find top-level visible window belonging to any ancestor process
+            def enum_windows_callback(hwnd, lParam):
+                if ctypes.windll.user32.IsWindowVisible(hwnd):
+                    lpdw_process_id = wintypes.DWORD()
+                    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(lpdw_process_id))
+                    wpid = lpdw_process_id.value
+                    if wpid in ancestor_pids:
+                        buf = ctypes.create_unicode_buffer(256)
+                        ctypes.windll.user32.GetClassNameW(hwnd, buf, 256)
+                        # Check against common terminal window classes:
+                        # - CASCADIA_HOSTING_WINDOW_CLASS (Windows Terminal)
+                        # - ConsoleWindowClass (Classic CMD/PowerShell)
+                        # - mintty (Git Bash terminal)
+                        # - VirtualConsoleClass (ConEmu/Cmder)
+                        if buf.value in ("CASCADIA_HOSTING_WINDOW_CLASS", "ConsoleWindowClass", "mintty", "VirtualConsoleClass"):
+                            terminal_windows.append(hwnd)
+                return True
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            ctypes.windll.user32.EnumWindows(WNDENUMPROC(enum_windows_callback), 0)
+
+            # Fallback to GetConsoleWindow if no terminal window was matched through ancestors
+            if not terminal_windows:
+                hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+                if hwnd:
+                    terminal_windows.append(hwnd)
+
+            # Hide the detected terminal windows
+            for hwnd in terminal_windows:
+                ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE = 0
+        except Exception:
+            pass
+
     if sys.platform == 'win32':
         try:
             import ctypes
@@ -1042,7 +1123,16 @@ def main():
 
     threading.Thread(target=check_for_updates, daemon=True).start()
 
-    webview.start(icon=get_asset_path('app.ico'), debug=False)
+    try:
+        webview.start(icon=get_asset_path('app.ico'), debug=False)
+    finally:
+        if sys.platform == 'win32' and terminal_windows:
+            try:
+                import ctypes
+                for hwnd in terminal_windows:
+                    ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW = 5
+            except Exception:
+                pass
 
 if __name__ == '__main__':
     main()
