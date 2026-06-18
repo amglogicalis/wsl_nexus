@@ -60,7 +60,7 @@ DISTRO_FALLBACK_INFO = {
     "ubuntu": {
         "wsl_url":  "https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-wsl-amd64.wsl",
         "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/Ubuntu2204-220117.appx",
-        "pkg_name": "CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc",
+        "pkg_name": "CanonicalGroupLimited.Ubuntu*",
         "exe_hint": "ubuntu",
         "winget_id": "Canonical.Ubuntu"
     },
@@ -102,7 +102,7 @@ DISTRO_FALLBACK_INFO = {
     "kali-linux": {
         "wsl_url":  None,
         "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/KaliLinux_1.13.1.0.AppxBundle",
-        "pkg_name": "KaliLinux.54290C8133FEE_ey8k8hqnwqnmg",
+        "pkg_name": "KaliLinux.54290C8133FEE*",
         "exe_hint": "kali",
         "winget_id": "KaliLinux.KaliLinux"
     },
