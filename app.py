@@ -54,56 +54,56 @@ def find_wsl_path():
 # exe_hint=prefix of the launcher exe inside the package, winget_id=winget package id.
 DISTRO_FALLBACK_INFO = {
     "ubuntu": {
-        "url": "https://aka.ms/wslubuntu",
+        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2204-221101.AppxBundle",
         "pkg_name": "CanonicalGroupLimited.Ubuntu*",
         "exe_hint": "ubuntu",
         "winget_id": "Canonical.Ubuntu"
     },
     "ubuntu-24.04": {
-        "url": "https://aka.ms/wslubuntu2404",
+        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2404-240425.AppxBundle",
         "pkg_name": "CanonicalGroupLimited.Ubuntu24.04LTS*",
         "exe_hint": "ubuntu2404",
         "winget_id": "Canonical.Ubuntu.2404"
     },
     "ubuntu-22.04": {
-        "url": "https://aka.ms/wslubuntu2204",
+        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2204-221101.AppxBundle",
         "pkg_name": "CanonicalGroupLimited.Ubuntu22.04LTS*",
         "exe_hint": "ubuntu2204",
         "winget_id": "Canonical.Ubuntu.2204"
     },
     "ubuntu-20.04": {
-        "url": "https://aka.ms/wslubuntu2004",
+        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/CanonicalGroupLimited.UbuntuonWindows_2004.2021.825.0.AppxBundle",
         "pkg_name": "CanonicalGroupLimited.Ubuntu20.04LTS*",
         "exe_hint": "ubuntu2004",
         "winget_id": "Canonical.Ubuntu.2004"
     },
     "ubuntu-18.04": {
-        "url": "https://aka.ms/wsl-ubuntu-1804",
+        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu_1804.2019.522.0_x64.appx",
         "pkg_name": "CanonicalGroupLimited.Ubuntu18.04onWindows*",
         "exe_hint": "ubuntu1804",
         "winget_id": "Canonical.Ubuntu.1804"
     },
     "debian": {
-        "url": "https://aka.ms/wsl-debian-gnulinux",
+        "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/TheDebianProject.DebianGNULinux_1.12.2.0_neutral___76v4gfsz19hv4.AppxBundle",
         "pkg_name": "TheDebianProject.DebianGNULinux*",
         "exe_hint": "debian",
         "winget_id": "TheDebianProject.DebianGNULinux"
     },
     "kali-linux": {
-        "url": "https://aka.ms/wsl-kali-linux-new",
+        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/KaliLinux.54290C8133FEE_1.1.4.0_neutral_~_ey8k8hqnwqnmg.AppxBundle",
         "pkg_name": "KaliLinux.KaliLinuxforWindowsSubsystemforLinux*",
         "exe_hint": "kali",
         "winget_id": "KaliLinux.KaliLinux"
     },
     "opensuse-leap-15.5": {
-        "url": "https://aka.ms/wsl-opensuse-leap-15-5",
-        "pkg_name": "46932SUSE.openSUSELeap15.5*",
+        "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELeap15p6-240801_x64.Appx",
+        "pkg_name": "46932SUSE.openSUSELeap*",
         "exe_hint": "openSUSE",
         "winget_id": "openSUSE.openSUSELeap15.5"
     },
     "sles-15": {
-        "url": "https://aka.ms/wsl-sles-15",
-        "pkg_name": "46932SUSE.SUSELinuxEnterpriseServer15SP5*",
+        "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELinuxEnterprise15SP6-241001_x64.Appx",
+        "pkg_name": "46932SUSE.SUSELinuxEnterprise*",
         "exe_hint": "SLES",
         "winget_id": "SUSE.SUSELinuxEnterpriseServer15SP5"
     }
@@ -540,16 +540,44 @@ if ($wingetExe) {{
     }}
 }}
 
-# ── Step 2: fallback via Start-BitsTransfer + Add-AppxPackage ────────────────
+# ── Step 2: fallback via Start-BitsTransfer / Invoke-WebRequest ────────────────
 $pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
 if (-not $pkg) {{
     Write-Host "[Nexus] Descargando paquete desde $url ..."
     New-Item -ItemType Directory -Force -Path 'C:\\WSL' | Out-Null
     $dest = "C:\\WSL\\$distroName.appx"
     if (Test-Path $dest) {{ Remove-Item $dest -Force }}
+    
+    $downloadSuccess = $false
     try {{
+        Write-Host '[Nexus] Probando método de descarga 1 (Start-BitsTransfer)...'
         Start-BitsTransfer -Source $url -Destination $dest -ErrorAction Stop
-        Write-Host '[Nexus] Descarga completada. Instalando paquete...'
+        Write-Host '[Nexus] Descarga completada con BitsTransfer.'
+        $downloadSuccess = $true
+    }} catch {{
+        Write-Host "[Nexus] Advertencia: BitsTransfer falló ($($_.Exception.Message))."
+    }}
+
+    if (-not $downloadSuccess) {{
+        try {{
+            Write-Host '[Nexus] Probando método de descarga 2 (Invoke-WebRequest)...'
+            $oldProgress = $ProgressPreference
+            $ProgressPreference = 'SilentlyContinue'
+            
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -ErrorAction Stop
+            
+            $ProgressPreference = $oldProgress
+            Write-Host '[Nexus] Descarga completada con Invoke-WebRequest.'
+            $downloadSuccess = $true
+        }} catch {{
+            Write-Host "[Nexus] ERROR: Todos los métodos de descarga fallaron ($($_.Exception.Message))."
+            exit 1
+        }}
+    }}
+
+    try {{
+        Write-Host '[Nexus] Instalando paquete (.appx)...'
         Add-AppxPackage -Path $dest -ErrorAction Stop
         Write-Host '[Nexus] Paquete instalado.'
         Start-Sleep -Seconds 3

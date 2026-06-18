@@ -45,4 +45,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['app.ico'],
+    version='file_version_info.txt',
 )
