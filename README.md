@@ -26,6 +26,8 @@ Es una aplicación de escritorio nativa para Windows que te permite administrar 
 
 Para instalar y utilizar la aplicación de forma rápida y sencilla:
 
+#### **VÍA INSTALLER.EXE**
+
 1. Ve a la sección **[Releases](https://github.com/amglogicalis/wsl_nexus/releases/latest)**.
 2. Descarga el archivo instalador: `WSLNexus_Setup_vX.X.X.exe`.
 3. Ejecútalo como **Administrador** (clic derecho → *Ejecutar como administrador*).
@@ -34,6 +36,12 @@ Para instalar y utilizar la aplicación de forma rápida y sencilla:
    - Instalar el programa en la ruta elegida.
    - Crear accesos directos en el Escritorio e Inicio.
    - Registrar la aplicación en "Agregar o quitar programas" para que puedas desinstalarla limpiamente si lo deseas.
+
+#### **VÍA PYTHON**
+
+1. Clonar repo "https://github.com/amglogicalis/wsl_nexus.git"
+2. Instalar dependencias (necesitas instalar si no lo tienes Python:https://www.python.org/downloads/windows/) mediante "python install_deps.py" en un terminal
+3. Ejecutar la app mediante "python app.py"
 
 ### ⚠️ Aviso de Windows Defender / SmartScreen
 
