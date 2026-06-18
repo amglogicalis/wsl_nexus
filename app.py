@@ -50,62 +50,96 @@ def find_wsl_path():
             return p
     return "wsl.exe"
 
-# Each entry: url=AppxBundle download, pkg_name=Get-AppxPackage -Name pattern,
-# exe_hint=prefix of the launcher exe inside the package, winget_id=winget package id.
+# Fallback installation info per distro.
+# wsl_url  = modern .wsl tarball  → installed via "wsl --import" (fastest, no Store needed)
+# appx_url = legacy .appx/.AppxBundle → installed via Add-AppxPackage (second choice)
+# pkg_name = Get-AppxPackage -Name pattern (for appx path detection)
+# exe_hint = prefix of the launcher .exe inside the appx package
+# winget_id = winget package id (tried first)
 DISTRO_FALLBACK_INFO = {
     "ubuntu": {
-        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2204-221101.AppxBundle",
-        "pkg_name": "CanonicalGroupLimited.Ubuntu*",
+        "wsl_url":  "https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-wsl-amd64.wsl",
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/Ubuntu2204-220117.appx",
+        "pkg_name": "CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc",
         "exe_hint": "ubuntu",
         "winget_id": "Canonical.Ubuntu"
     },
     "ubuntu-24.04": {
-        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2404-240425.AppxBundle",
+        "wsl_url":  "https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-wsl-amd64.wsl",
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/Ubuntu2204-220117.appx",
         "pkg_name": "CanonicalGroupLimited.Ubuntu24.04LTS*",
         "exe_hint": "ubuntu2404",
         "winget_id": "Canonical.Ubuntu.2404"
     },
     "ubuntu-22.04": {
-        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2204-221101.AppxBundle",
+        "wsl_url":  "https://releases.ubuntu.com/jammy/ubuntu-22.04.5-wsl-amd64.wsl",
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/Ubuntu2204-220117.appx",
         "pkg_name": "CanonicalGroupLimited.Ubuntu22.04LTS*",
         "exe_hint": "ubuntu2204",
         "winget_id": "Canonical.Ubuntu.2204"
     },
     "ubuntu-20.04": {
-        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/CanonicalGroupLimited.UbuntuonWindows_2004.2021.825.0.AppxBundle",
+        "wsl_url":  "https://releases.ubuntu.com/focal/ubuntu-20.04.6-wsl-amd64.wsl",
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/Ubuntu2204-220117.appx",
         "pkg_name": "CanonicalGroupLimited.Ubuntu20.04LTS*",
         "exe_hint": "ubuntu2004",
         "winget_id": "Canonical.Ubuntu.2004"
     },
     "ubuntu-18.04": {
-        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu_1804.2019.522.0_x64.appx",
+        "wsl_url":  "https://releases.ubuntu.com/focal/ubuntu-20.04.6-wsl-amd64.wsl",
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/Ubuntu2204-220117.appx",
         "pkg_name": "CanonicalGroupLimited.Ubuntu18.04onWindows*",
         "exe_hint": "ubuntu1804",
         "winget_id": "Canonical.Ubuntu.1804"
     },
     "debian": {
-        "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/TheDebianProject.DebianGNULinux_1.12.2.0_neutral___76v4gfsz19hv4.AppxBundle",
+        "wsl_url":  None,
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/TheDebianProject.DebianGNULinux_1.12.2.0_neutral___76v4gfsz19hv4.AppxBundle",
         "pkg_name": "TheDebianProject.DebianGNULinux*",
         "exe_hint": "debian",
         "winget_id": "TheDebianProject.DebianGNULinux"
     },
     "kali-linux": {
-        "url": "https://wslstorestorage.blob.core.windows.net/wslblob/KaliLinux.54290C8133FEE_1.1.4.0_neutral_~_ey8k8hqnwqnmg.AppxBundle",
-        "pkg_name": "KaliLinux.KaliLinuxforWindowsSubsystemforLinux*",
+        "wsl_url":  None,
+        "appx_url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/KaliLinux_1.13.1.0.AppxBundle",
+        "pkg_name": "KaliLinux.54290C8133FEE_ey8k8hqnwqnmg",
         "exe_hint": "kali",
         "winget_id": "KaliLinux.KaliLinux"
     },
+    "opensuse-tumbleweed": {
+        "wsl_url":  None,
+        "appx_url": "https://github.com/openSUSE/WSL-instarball/releases/download/v20260423.0/openSUSE-Tumbleweed-20260422-WSL.x86_64-26112.10.203.0-Build10.203.appx",
+        "pkg_name": "46932SUSE.openSUSETumbleweed*",
+        "exe_hint": "openSUSE",
+        "winget_id": "openSUSE.openSUSETumbleweed"
+    },
     "opensuse-leap-15.5": {
-        "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELeap15p6-240801_x64.Appx",
+        "wsl_url":  None,
+        "appx_url": "https://github.com/openSUSE/WSL-instarball/releases/download/v20260423.0/openSUSE-Tumbleweed-20260422-WSL.x86_64-26112.10.203.0-Build10.203.appx",
         "pkg_name": "46932SUSE.openSUSELeap*",
         "exe_hint": "openSUSE",
         "winget_id": "openSUSE.openSUSELeap15.5"
     },
     "sles-15": {
-        "url": "https://publicwsldistros.blob.core.windows.net/wsldistrostorage/SUSELinuxEnterprise15SP6-241001_x64.Appx",
+        "wsl_url":  None,
+        "appx_url": "https://github.com/SUSE/WSL-instarball/releases/download/v20250618.0/SUSE-Linux-Enterprise-15-SP6-15.6-WSL.x86_64-156.3.148.0-Build3.148.appx",
         "pkg_name": "46932SUSE.SUSELinuxEnterprise*",
         "exe_hint": "SLES",
-        "winget_id": "SUSE.SUSELinuxEnterpriseServer15SP5"
+        "winget_id": "SUSE.SUSELinuxEnterpriseServer15SP6"
+    },
+    "suse-linux-enterprise-15-sp6": {
+        "wsl_url":  None,
+        "appx_url": "https://github.com/SUSE/WSL-instarball/releases/download/v20250618.0/SUSE-Linux-Enterprise-15-SP6-15.6-WSL.x86_64-156.3.148.0-Build3.148.appx",
+        "pkg_name": "46932SUSE.SUSELinuxEnterprise*",
+        "exe_hint": "SLES",
+        "winget_id": "SUSE.SUSELinuxEnterpriseServer15SP6"
+    },
+    "fedoralinux-44": {
+        "wsl_url":  "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Container/x86_64/images/Fedora-WSL-Base-44-1.7.x86_64.wsl",
+        "appx_url": None,
+        "pkg_name": "*Fedora*",
+        "exe_hint": "fedora",
+        "winget_id": "FedoraProject.Fedora"
     }
 }
 
@@ -507,200 +541,213 @@ class Api:
             return {"started": False, "message": str(e)}
 
     def _run_powershell_fallback_install(self, distro_name, session_id):
-        """Fallback WSL distro installation via winget (preferred) or
-        Start-BitsTransfer + Add-AppxPackage + silent --root registration.
-        No interactive console window is opened; the distro is initialised
-        with root as the default user so it appears correctly in the app.
+        """
+        3-tier PowerShell fallback WSL distro installation.
+
+        Tier A (preferred, modern): Download .wsl tarball → wsl --import
+            Uses direct official URLs (Ubuntu releases.ubuntu.com, etc.)
+            No Store required, works without AppxPackage permissions.
+
+        Tier B (legacy appx): Download .appx/.AppxBundle → Add-AppxPackage
+            Then locate & run the launcher exe with 'install --root'.
+
+        All download attempts use Start-BitsTransfer first, then
+        Invoke-WebRequest as a secondary download method.
+        No interactive console window is opened.
         """
         info = get_fallback_info(distro_name)
-        url        = info["url"]
-        pkg_name   = info["pkg_name"]
-        exe_hint   = info["exe_hint"]
-        winget_id  = info["winget_id"]
+        wsl_url   = info.get("wsl_url")   or ""
+        appx_url  = info.get("appx_url")  or ""
+        pkg_name  = info["pkg_name"]
+        exe_hint  = info["exe_hint"]
+        winget_id = info["winget_id"]
 
+        # Build a PowerShell here-string with the 3-tier logic
         ps_script = f"""
 $ErrorActionPreference = 'Continue'
 $distroName = '{distro_name}'
 $wingetId   = '{winget_id}'
-$url        = '{url}'
+$wslUrl     = '{wsl_url}'
+$appxUrl    = '{appx_url}'
 $pkgName    = '{pkg_name}'
 $exeHint    = '{exe_hint}'
+$wslExe     = 'C:\\Windows\\System32\\wsl.exe'
 
-# ── Step 1: try winget (silent, no window) ───────────────────────────────────
-Write-Host '[Nexus] Intentando instalación con winget...'
-$wingetExe = (Get-Command winget -ErrorAction SilentlyContinue)?.Source
-if ($wingetExe) {{
-    $wg = Start-Process -FilePath $wingetExe `
-        -ArgumentList "install --id $wingetId --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity" `
-        -Wait -PassThru -NoNewWindow
-    if ($wg.ExitCode -eq 0) {{
-        Write-Host '[Nexus] winget instaló el paquete correctamente.'
-    }} else {{
-        Write-Host "[Nexus] winget falló (código $($wg.ExitCode)). Probando con AppxPackage..."
-    }}
-}}
+New-Item -ItemType Directory -Force -Path 'C:\\WSL' | Out-Null
 
-# ── Step 2: fallback via Start-BitsTransfer / Invoke-WebRequest ────────────────
-$pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
-if (-not $pkg) {{
-    Write-Host "[Nexus] Descargando paquete desde $url ..."
-    New-Item -ItemType Directory -Force -Path 'C:\\WSL' | Out-Null
-    $dest = "C:\\WSL\\$distroName.appx"
-    if (Test-Path $dest) {{ Remove-Item $dest -Force }}
-    
-    $downloadSuccess = $false
+function Download-File($url, $dest) {{
+    if (Test-Path $dest) {{ Remove-Item $dest -Force -ErrorAction SilentlyContinue }}
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
+    Write-Host "[Nexus] Descargando: $url"
+    Write-Host '[Nexus] Método 1: Start-BitsTransfer...'
     try {{
-        Write-Host '[Nexus] Probando método de descarga 1 (Start-BitsTransfer)...'
         Start-BitsTransfer -Source $url -Destination $dest -ErrorAction Stop
         Write-Host '[Nexus] Descarga completada con BitsTransfer.'
-        $downloadSuccess = $true
+        return $true
     }} catch {{
-        Write-Host "[Nexus] Advertencia: BitsTransfer falló ($($_.Exception.Message))."
+        Write-Host "[Nexus] BitsTransfer falló: $($_.Exception.Message)"
     }}
 
-    if (-not $downloadSuccess) {{
-        try {{
-            Write-Host '[Nexus] Probando método de descarga 2 (Invoke-WebRequest)...'
-            $oldProgress = $ProgressPreference
-            $ProgressPreference = 'SilentlyContinue'
-            
-            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -ErrorAction Stop
-            
-            $ProgressPreference = $oldProgress
-            Write-Host '[Nexus] Descarga completada con Invoke-WebRequest.'
-            $downloadSuccess = $true
-        }} catch {{
-            Write-Host "[Nexus] ERROR: Todos los métodos de descarga fallaron ($($_.Exception.Message))."
-            exit 1
-        }}
-    }}
-
+    Write-Host '[Nexus] Método 2: Invoke-WebRequest...'
     try {{
-        Write-Host '[Nexus] Instalando paquete (.appx)...'
-        Add-AppxPackage -Path $dest -ErrorAction Stop
-        Write-Host '[Nexus] Paquete instalado.'
-        Start-Sleep -Seconds 3
+        $oldPref = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -ErrorAction Stop
+        $ProgressPreference = $oldPref
+        Write-Host '[Nexus] Descarga completada con Invoke-WebRequest.'
+        return $true
     }} catch {{
-        Write-Host "[Nexus] ERROR al instalar paquete: $_"
-        exit 1
+        Write-Host "[Nexus] Invoke-WebRequest falló: $($_.Exception.Message)"
     }}
+    return $false
 }}
 
-# ── Step 3: locate the distro launcher exe ───────────────────────────────────
-$pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
-if (-not $pkg) {{
-    Write-Host '[Nexus] ERROR: No se encontró el paquete AppxPackage tras la instalación.'
-    exit 1
-}}
-$installLoc = $pkg.InstallLocation
-Write-Host "[Nexus] Paquete encontrado en: $installLoc"
-
-# Find exe: prefer one whose name starts with the exe_hint, else take the first
-$exes = Get-ChildItem -Path $installLoc -Filter '*.exe' -ErrorAction SilentlyContinue
-$exe  = ($exes | Where-Object {{ $_.Name -like "$exeHint*.exe" }} | Select-Object -First 1)
-if (-not $exe) {{ $exe = $exes | Select-Object -First 1 }}
-if (-not $exe) {{
-    Write-Host '[Nexus] ERROR: No se encontró el ejecutable de la distribución.'
-    exit 1
-}}
-Write-Host "[Nexus] Ejecutable encontrado: $($exe.Name)"
-
-# ── Step 4: silent registration ──
-Write-Host '[Nexus] Registrando distribución en WSL...'
 $registered = $false
-$timeout = 90
-$interval = 2
-$outFile = "C:\\WSL\\log-$distroName.txt"
-if (Test-Path $outFile) {{ Remove-Item $outFile -Force -ErrorAction SilentlyContinue }}
 
-Write-Host '[Nexus] Probando registro con "install --root"...'
-$reg = Start-Process -FilePath $exe.FullName -ArgumentList 'install --root' -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $outFile
+# ══════════════════════════════════════════════════════════
+# TIER 1 (Modern): .wsl tarball → wsl --import
+# Works without Store/AppxPackage permissions
+# ══════════════════════════════════════════════════════════
+if ($wslUrl -and $wslUrl -ne '') {{
+    Write-Host ''
+    Write-Host '[Nexus] ═══ MÉTODO 1: wsl --import con archivo .wsl (moderno) ═══'
+    $wslDest = "C:\\WSL\\$distroName.wsl"
+    $wslInstallDir = "C:\\WSL\\$distroName"
+    New-Item -ItemType Directory -Force -Path $wslInstallDir | Out-Null
 
-$lastPos = 0
-for ($i = 0; $i -lt $timeout; $i += $interval) {{
-    Start-Sleep -Seconds $interval
-    
-    if (Test-Path $outFile) {{
+    $dlOk = Download-File $wslUrl $wslDest
+    if ($dlOk -and (Test-Path $wslDest)) {{
+        Write-Host "[Nexus] Importando distribución con 'wsl --import'..."
         try {{
-            $content = Get-Content -Path $outFile -Raw -ErrorAction SilentlyContinue
-            if ($content -and $content.Length -gt $lastPos) {{
-                Write-Host $content.Substring($lastPos) -NoNewline
-                $lastPos = $content.Length
+            $importOut = & $wslExe --import $distroName $wslInstallDir $wslDest --version 2 2>&1
+            Write-Host $importOut
+            Start-Sleep -Seconds 3
+
+            $list = (& $wslExe --list --quiet) | ForEach-Object {{ $_.Replace("`0","").Trim() }} | Where-Object {{ $_ }}
+            if ($list -like "*$distroName*") {{
+                $registered = $true
+                Write-Host "[Nexus] Distribución '$distroName' registrada con éxito (método .wsl)."
+            }} else {{
+                Write-Host '[Nexus] wsl --import completó pero la distribución no aparece en la lista. Continuando con método 2...'
             }}
-        }} catch {{}}
-    }}
-    
-    $list = (wsl.exe --list --quiet) | Out-String -Stream | ForEach-Object {{ $_.Replace("`0", "").Trim() }} | Where-Object {{ $_ }}
-    if ($list -like "*$distroName*") {{
-        $registered = $true
-        Write-Host "`n[Nexus] Distribución registrada con éxito en WSL."
-        break
-    }}
-    if ($reg -and $reg.HasExited -and $reg.ExitCode -ne 0) {{
-        Write-Host "`n[Nexus] Registro con --root falló con código $($reg.ExitCode)."
-        break
+        }} catch {{
+            Write-Host "[Nexus] wsl --import falló: $($_.Exception.Message)"
+        }}
+        Remove-Item $wslDest -Force -ErrorAction SilentlyContinue
+    }} else {{
+        Write-Host '[Nexus] No se pudo descargar el archivo .wsl. Continuando con método 2...'
     }}
 }}
 
-if ($reg -and -not $reg.HasExited) {{
-    Write-Host "`n[Nexus] Cerrando proceso de inicialización..."
-    Stop-Process -Id $reg.Id -Force -ErrorAction SilentlyContinue
-}}
-
+# ══════════════════════════════════════════════════════════
+# TIER 2 (Winget): intento silencioso con winget
+# ══════════════════════════════════════════════════════════
 if (-not $registered) {{
-    Write-Host '[Nexus] --root no funcionó o no es soportado; intentando registro directo...'
-    if (Test-Path $outFile) {{ Remove-Item $outFile -Force -ErrorAction SilentlyContinue }}
-    $reg2 = Start-Process -FilePath $exe.FullName -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $outFile
-    
-    $lastPos = 0
-    for ($i = 0; $i -lt $timeout; $i += $interval) {{
-        Start-Sleep -Seconds $interval
-        
-        if (Test-Path $outFile) {{
-            try {{
-                $content = Get-Content -Path $outFile -Raw -ErrorAction SilentlyContinue
-                if ($content -and $content.Length -gt $lastPos) {{
-                    Write-Host $content.Substring($lastPos) -NoNewline
-                    $lastPos = $content.Length
-                }}
-            }} catch {{}}
+    Write-Host ''
+    Write-Host '[Nexus] ═══ MÉTODO 2: winget ═══'
+    $wingetExe = (Get-Command winget -ErrorAction SilentlyContinue)?.Source
+    if ($wingetExe) {{
+        $wg = Start-Process -FilePath $wingetExe `
+            -ArgumentList "install --id $wingetId --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity" `
+            -Wait -PassThru -NoNewWindow
+        if ($wg.ExitCode -eq 0) {{
+            Write-Host '[Nexus] winget instaló el paquete correctamente.'
+            Start-Sleep -Seconds 3
+            $list = (& $wslExe --list --quiet) | ForEach-Object {{ $_.Replace("`0","").Trim() }} | Where-Object {{ $_ }}
+            if ($list -like "*$distroName*") {{ $registered = $true }}
+        }} else {{
+            Write-Host "[Nexus] winget falló (código $($wg.ExitCode)). Continuando con método 3..."
         }}
-        
-        $list = (wsl.exe --list --quiet) | Out-String -Stream | ForEach-Object {{ $_.Replace("`0", "").Trim() }} | Where-Object {{ $_ }}
-        if ($list -like "*$distroName*") {{
-            $registered = $true
-            Write-Host "`n[Nexus] Distribución registrada con éxito en WSL (registro directo)."
-            break
-        }}
-        if ($reg2 -and $reg2.HasExited -and $reg2.ExitCode -ne 0) {{
-            Write-Host "`n[Nexus] Registro directo falló con código $($reg2.ExitCode)."
-            break
-        }}
-    }}
-    
-    if ($reg2 -and -not $reg2.HasExited) {{
-        Write-Host "`n[Nexus] Cerrando proceso de inicialización..."
-        Stop-Process -Id $reg2.Id -Force -ErrorAction SilentlyContinue
+    }} else {{
+        Write-Host '[Nexus] winget no está disponible. Continuando con método 3...'
     }}
 }}
 
-if (Test-Path $outFile) {{ Remove-Item $outFile -Force -ErrorAction SilentlyContinue }}
+# ══════════════════════════════════════════════════════════
+# TIER 3 (AppxPackage): .appx/.AppxBundle → Add-AppxPackage
+# Then run the launcher exe to register the WSL distro
+# ══════════════════════════════════════════════════════════
+if (-not $registered -and $appxUrl -and $appxUrl -ne '') {{
+    Write-Host ''
+    Write-Host '[Nexus] ═══ MÉTODO 3: AppxPackage (.appx) ═══'
+    $appxDest = "C:\\WSL\\$distroName.appx"
 
-if ($registered) {{
-    $wslList = (wsl.exe --list --quiet) | Out-String -Stream | ForEach-Object {{ $_.Replace("`0", "").Trim() }} | Where-Object {{ $_ }}
-    $actualName = $wslList | Where-Object {{ $_.ToLower() -eq $distroName.ToLower() -or $_ -like "*$distroName*" }} | Select-Object -First 1
-    if (-not $actualName) {{
-        $actualName = $distroName
+    $pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
+    if (-not $pkg) {{
+        $dlOk = Download-File $appxUrl $appxDest
+        if ($dlOk) {{
+            try {{
+                Write-Host '[Nexus] Instalando paquete Appx...'
+                Add-AppxPackage -Path $appxDest -ErrorAction Stop
+                Write-Host '[Nexus] Paquete Appx instalado.'
+                Start-Sleep -Seconds 3
+            }} catch {{
+                Write-Host "[Nexus] ERROR al instalar Appx: $_"
+            }}
+            Remove-Item $appxDest -Force -ErrorAction SilentlyContinue
+        }} else {{
+            Write-Host '[Nexus] ERROR: No se pudo descargar el paquete Appx.'
+        }}
+    }} else {{
+        Write-Host "[Nexus] Paquete Appx ya instalado en: $($pkg.InstallLocation)"
     }}
-    
-    Write-Host "[Nexus] Deteniendo la distribución '$actualName' para cerrar cualquier sesión de consola abierta..."
-    wsl.exe --terminate $actualName
+
+    # Locate launcher exe and register the WSL distro
+    $pkg = Get-AppxPackage -Name $pkgName -ErrorAction SilentlyContinue
+    if ($pkg) {{
+        $installLoc = $pkg.InstallLocation
+        Write-Host "[Nexus] Paquete encontrado en: $installLoc"
+        $exes = Get-ChildItem -Path $installLoc -Filter '*.exe' -ErrorAction SilentlyContinue
+        $exe  = ($exes | Where-Object {{ $_.Name -like "$exeHint*.exe" }} | Select-Object -First 1)
+        if (-not $exe) {{ $exe = $exes | Select-Object -First 1 }}
+
+        if ($exe) {{
+            Write-Host "[Nexus] Ejecutable encontrado: $($exe.Name)"
+            Write-Host '[Nexus] Registrando distribución en WSL (install --root)...'
+            $logFile = "C:\\WSL\\log-$distroName.txt"
+            if (Test-Path $logFile) {{ Remove-Item $logFile -Force -ErrorAction SilentlyContinue }}
+
+            $reg = Start-Process -FilePath $exe.FullName -ArgumentList 'install --root' -PassThru -NoNewWindow -RedirectStandardOutput $logFile -RedirectStandardError $logFile
+            $timeout = 90; $interval = 2; $lastPos = 0
+            for ($i = 0; $i -lt $timeout; $i += $interval) {{
+                Start-Sleep -Seconds $interval
+                if (Test-Path $logFile) {{
+                    try {{
+                        $c = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
+                        if ($c -and $c.Length -gt $lastPos) {{ Write-Host $c.Substring($lastPos) -NoNewline; $lastPos = $c.Length }}
+                    }} catch {{}}
+                }}
+                $list = (& $wslExe --list --quiet) | ForEach-Object {{ $_.Replace("`0","").Trim() }} | Where-Object {{ $_ }}
+                if ($list -like "*$distroName*") {{
+                    $registered = $true
+                    Write-Host "`n[Nexus] Distribución registrada (Appx launcher)."
+                    break
+                }}
+                if ($reg -and $reg.HasExited -and $reg.ExitCode -ne 0) {{ break }}
+            }}
+            if ($reg -and -not $reg.HasExited) {{ Stop-Process -Id $reg.Id -Force -ErrorAction SilentlyContinue }}
+            Remove-Item $logFile -Force -ErrorAction SilentlyContinue
+        }} else {{
+            Write-Host '[Nexus] ERROR: No se encontró el ejecutable de la distribución en el paquete Appx.'
+        }}
+    }} else {{
+        Write-Host '[Nexus] ERROR: Paquete Appx no encontrado tras la instalación.'
+    }}
+}}
+
+# ── Resultado final ──────────────────────────────────────
+if ($registered) {{
+    $wslList = (& $wslExe --list --quiet) | ForEach-Object {{ $_.Replace("`0","").Trim() }} | Where-Object {{ $_ }}
+    $actualName = $wslList | Where-Object {{ $_.ToLower() -eq $distroName.ToLower() -or $_ -like "*$distroName*" }} | Select-Object -First 1
+    if (-not $actualName) {{ $actualName = $distroName }}
+    Write-Host "[Nexus] Deteniendo '$actualName'..."
+    & $wslExe --terminate $actualName 2>$null
     Write-Host "[Nexus] RegisteredName: $actualName"
     Write-Host '[Nexus] Instalación de fallback completada con éxito.'
     exit 0
 }} else {{
-    Write-Host '[Nexus] ERROR: No se pudo registrar la distribución en WSL tras la instalación.'
+    Write-Host '[Nexus] ERROR: Todos los métodos de instalación fallaron.'
     exit 1
 }}
 """

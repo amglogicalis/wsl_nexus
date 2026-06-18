@@ -7,13 +7,14 @@
 #define AppPublisher "AMG Logicalis"
 #define AppURL       "https://github.com/amglogicalis/wsl_nexus"
 #define AppExeName   "app.exe"
+#define AppGUID      "A3F7B2E1-0C4D-4A9F-8E3B-1D5C7F2A8B6E"
 #define VersionFile  "VERSION"
 #define VerFile      FileOpen(VersionFile)
 #define AppVersion   Trim(FileRead(VerFile))
 #expr FileClose(VerFile)
 
 [Setup]
-AppId={{A3F7B2E1-0C4D-4A9F-8E3B-1D5C7F2A8B6E}
+AppId={{{#AppGUID}}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} v{#AppVersion}
@@ -75,10 +76,11 @@ Name: "{userstartmenu}\{#AppName}";     Filename: "{app}\{#AppExeName}"; IconFil
 
 [Registry]
 ; Registrar en Agregar/Quitar programas con metadatos extra
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1"; ValueType: string; ValueName: "DisplayVersion";   ValueData: "{#AppVersion}";        Flags: uninsdeletevalue
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1"; ValueType: string; ValueName: "Publisher";        ValueData: "{#AppPublisher}";      Flags: uninsdeletevalue
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1"; ValueType: string; ValueName: "URLInfoAbout";     ValueData: "{#AppURL}";            Flags: uninsdeletevalue
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1"; ValueType: dword;  ValueName: "EstimatedSize";    ValueData: "20480";                Flags: uninsdeletevalue
+; Note: Inno Setup auto-creates most of these; we add extras only.
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{{#AppGUID}}_is1"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "{#AppVersion}";   Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{{#AppGUID}}_is1"; ValueType: string; ValueName: "Publisher";       ValueData: "{#AppPublisher}"; Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{{#AppGUID}}_is1"; ValueType: string; ValueName: "URLInfoAbout";    ValueData: "{#AppURL}";       Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{{#AppGUID}}_is1"; ValueType: dword;  ValueName: "EstimatedSize";   ValueData: "20480";           Flags: uninsdeletevalue
 
 [Run]
 ; 1. Habilitar WSL silenciosamente (como admin - ya que el installer lo es)
