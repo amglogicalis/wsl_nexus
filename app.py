@@ -706,18 +706,27 @@ if (-not $registered -and $appxUrl -and $appxUrl -ne '') {{
         if ($exe) {{
             Write-Host "[Nexus] Ejecutable encontrado: $($exe.Name)"
             Write-Host '[Nexus] Registrando distribución en WSL (install --root)...'
-            $logFile = "C:\\WSL\\log-$distroName.txt"
-            if (Test-Path $logFile) {{ Remove-Item $logFile -Force -ErrorAction SilentlyContinue }}
+            $logFile = "C:\\WSL\\log-$distroName-out.txt"
+            $logFileErr = "C:\\WSL\\log-$distroName-err.txt"
+            foreach ($f in @($logFile, $logFileErr)) {{
+                if (Test-Path $f) {{ Remove-Item $f -Force -ErrorAction SilentlyContinue }}
+            }}
 
-            $reg = Start-Process -FilePath $exe.FullName -ArgumentList 'install --root' -PassThru -NoNewWindow -RedirectStandardOutput $logFile -RedirectStandardError $logFile
-            $timeout = 90; $interval = 2; $lastPos = 0
+            $reg = Start-Process -FilePath $exe.FullName -ArgumentList 'install --root' -PassThru -NoNewWindow `
+                -RedirectStandardOutput $logFile -RedirectStandardError $logFileErr
+            $timeout = 90; $interval = 2; $lastPosOut = 0; $lastPosErr = 0
             for ($i = 0; $i -lt $timeout; $i += $interval) {{
                 Start-Sleep -Seconds $interval
-                if (Test-Path $logFile) {{
-                    try {{
-                        $c = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
-                        if ($c -and $c.Length -gt $lastPos) {{ Write-Host $c.Substring($lastPos) -NoNewline; $lastPos = $c.Length }}
-                    }} catch {{}}
+                foreach ($entry in @(@{{f=$logFile;p=[ref]$lastPosOut}}, @{{f=$logFileErr;p=[ref]$lastPosErr}})) {{
+                    if (Test-Path $entry.f) {{
+                        try {{
+                            $c = Get-Content $entry.f -Raw -ErrorAction SilentlyContinue
+                            if ($c -and $c.Length -gt $entry.p.Value) {{
+                                Write-Host $c.Substring($entry.p.Value) -NoNewline
+                                $entry.p.Value = $c.Length
+                            }}
+                        }} catch {{}}
+                    }}
                 }}
                 $list = (& $wslExe --list --quiet) | ForEach-Object {{ $_.Replace("`0","").Trim() }} | Where-Object {{ $_ }}
                 if ($list -like "*$distroName*") {{
@@ -728,7 +737,9 @@ if (-not $registered -and $appxUrl -and $appxUrl -ne '') {{
                 if ($reg -and $reg.HasExited -and $reg.ExitCode -ne 0) {{ break }}
             }}
             if ($reg -and -not $reg.HasExited) {{ Stop-Process -Id $reg.Id -Force -ErrorAction SilentlyContinue }}
-            Remove-Item $logFile -Force -ErrorAction SilentlyContinue
+            foreach ($f in @($logFile, $logFileErr)) {{
+                if (Test-Path $f) {{ Remove-Item $f -Force -ErrorAction SilentlyContinue }}
+            }}
         }} else {{
             Write-Host '[Nexus] ERROR: No se encontró el ejecutable de la distribución en el paquete Appx.'
         }}
